@@ -818,9 +818,23 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
           const data = await res.json();
           setMysqlStatus(data);
         } else {
+          const htmlText = await res.text();
+          const titleMatch = htmlText.match(/<title>([\s\S]*?)<\/title>/i);
+          const title = titleMatch ? titleMatch[1].trim() : '';
+          const snippet = htmlText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+          
+          let debugMsg = 'The server returned an HTML page instead of JSON.';
+          if (title) {
+            debugMsg += ` (Page Title: "${title}")`;
+          }
+          if (snippet) {
+            debugMsg += ` | Snippet: "${snippet}..."`;
+          }
+          debugMsg += ' This usually means the application was mistakenly deployed as a "Static Site" in Dokploy instead of a "Node.js/Nixpacks" server, or the backend is not running.';
+
           setMysqlStatus({
             connected: false,
-            message: 'The server returned an HTML page instead of JSON. The application server might be in compilation, database is offline, or the route configuration is pending.',
+            message: debugMsg,
             config: {
               host: 'Not Set',
               user: 'Not Set',
@@ -830,9 +844,24 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
           });
         }
       } else {
+        const statusText = res.statusText || '';
+        let htmlText = '';
+        try {
+          htmlText = await res.text();
+        } catch (_) {}
+        const titleMatch = htmlText.match(/<title>([\s\S]*?)<\/title>/i);
+        const title = titleMatch ? titleMatch[1].trim() : '';
+        
+        let errorMsg = `Status check returned response code ${res.status} (${statusText}).`;
+        if (title) {
+          errorMsg += ` (Proxy Title: "${title}")`;
+        } else if (htmlText) {
+          errorMsg += ` | Content: "${htmlText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)}..."`;
+        }
+
         setMysqlStatus({
           connected: false,
-          message: `Status check returned response code ${res.status}`,
+          message: errorMsg,
           config: {
             host: 'Not Set',
             user: 'Not Set',
@@ -1376,9 +1405,25 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                         {mysqlStatus.connected ? 'PostgreSQL Host Connected!' : 'Local / JSON DB Fallback'}
                       </strong>
                       <p className="opacity-90 leading-relaxed text-[10px]">{mysqlStatus.message}</p>
-                      {mysqlStatus.message && mysqlStatus.message.includes('HTML page') && (
-                        <div className="mt-2 bg-amber-50/70 border border-amber-200/60 rounded-lg p-2.5 text-[9px] text-amber-850 leading-normal font-sans">
-                          💡 <strong>Dokploy Action:</strong> If the server returned an HTML page instead of JSON, the Node application bundle is still compiling or has not started yet. Go to your <strong>Dokploy Dashboard</strong> and click <strong>Redeploy</strong> (not just Restart) on the application to force Nixpacks to build and start the new bundle.
+                      {mysqlStatus.message && (mysqlStatus.message.includes('HTML page') || mysqlStatus.message.includes('response code') || mysqlStatus.message.includes('Proxy Title')) && (
+                        <div className="mt-3 bg-amber-50/90 border border-amber-200 rounded-lg p-3 text-[10px] text-amber-900 leading-relaxed font-sans space-y-2">
+                          <div>
+                            💡 <strong>Critical Dokploy Deployment Diagnostic Checklist:</strong>
+                          </div>
+                          <ul className="list-disc pl-4 space-y-1 text-[9px]">
+                            <li>
+                              <strong>Application Type Check:</strong> If the HTML title is <em>"Saint Francis Clinic Portal"</em>, you mistakenly created a <strong>"Static Site"</strong> in Dokploy. You <strong>MUST</strong> delete it and recreate it as an <strong>Application (Node.js/Nixpacks)</strong>. Static sites do not run Express backends!
+                            </li>
+                            <li>
+                              <strong>Port Configuration:</strong> In Dokploy general settings, ensure the <strong>"Port"</strong> field is set to <strong>3000</strong>. Traefik reverse proxy routes port 3000 exclusively.
+                            </li>
+                            <li>
+                              <strong>Application Crash Logs:</strong> If you get <em>"502 Bad Gateway"</em> or <em>"504 Gateway Timeout"</em>, the server crashed on boot. Go to your <strong>Dokploy Dashboard</strong>, open the <strong>"Logs"</strong> tab of the app, and see the exact Node startup error.
+                            </li>
+                            <li>
+                              <strong>Manual Force Build:</strong> Go to Dokploy and click <strong>Redeploy</strong> (not just Restart) to force Nixpacks to compile the new server bundle.
+                            </li>
+                          </ul>
                         </div>
                       )}
                     </div>

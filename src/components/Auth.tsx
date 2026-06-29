@@ -74,12 +74,41 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
           setDbConfigMessage(data.message || '');
           setDbDetails(data.config || null);
         } else {
+          const htmlText = await res.text();
+          const titleMatch = htmlText.match(/<title>([\s\S]*?)<\/title>/i);
+          const title = titleMatch ? titleMatch[1].trim() : '';
+          const snippet = htmlText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+          
+          let debugMsg = 'The server returned an HTML page instead of JSON.';
+          if (title) {
+            debugMsg += ` (Page Title: "${title}")`;
+          }
+          if (snippet) {
+            debugMsg += ` | Snippet: "${snippet}..."`;
+          }
+          debugMsg += ' Ensure you deployed as a "Node.js/Nixpacks" Application in Dokploy, NOT a static site, and verify that the app is listening on port 3000.';
+
           setDbConnected(false);
-          setDbConfigMessage('The server returned an HTML page instead of JSON. The application server might be in compilation, database is offline, or the route configuration is pending.');
+          setDbConfigMessage(debugMsg);
         }
       } else {
+        const statusText = res.statusText || '';
+        let htmlText = '';
+        try {
+          htmlText = await res.text();
+        } catch (_) {}
+        const titleMatch = htmlText.match(/<title>([\s\S]*?)<\/title>/i);
+        const title = titleMatch ? titleMatch[1].trim() : '';
+        
+        let errorMsg = `Status check returned response code ${res.status} (${statusText}).`;
+        if (title) {
+          errorMsg += ` (Proxy Title: "${title}")`;
+        } else if (htmlText) {
+          errorMsg += ` | Content: "${htmlText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100)}..."`;
+        }
+
         setDbConnected(false);
-        setDbConfigMessage(`Status check returned response code ${res.status}`);
+        setDbConfigMessage(errorMsg);
       }
     } catch (err: any) {
       setDbConnected(false);
