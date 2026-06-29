@@ -4,7 +4,7 @@ import {
   User, Barangay, Purok, Household, HouseholdMember, Dependent, 
   Group, PaidPayroll, HealthRecord, ActivityLog, SiteSettings, Notification, Timecard 
 } from '../src/types';
-import { getMySQLPool, shouldAttemptMySQL, markMySQLSuccess, markMySQLFailure } from './mysql-connector';
+import { getPostgresPool as getMySQLPool, shouldAttemptPostgres as shouldAttemptMySQL, markPostgresSuccess as markMySQLSuccess, markPostgresFailure as markMySQLFailure } from './postgres-connector';
 
 const DB_FILE = path.join(process.cwd(), 'data', 'db.json');
 const DB_BACKUP_FILE = path.join(process.cwd(), 'data', 'db_backup.json');
@@ -1760,8 +1760,8 @@ export class SaintFrancisDB {
       const [rows] = await connection.query('SHOW TABLES');
       const tablesCount = (rows as any[]).length;
       if (tablesCount === 0) {
-        console.log('📦 Database is empty. Auto-initializing MySQL database schema inside Dokploy...');
-        const schemaPath = path.join(process.cwd(), 'mysql-schema.sql');
+        console.log('📦 Database is empty. Auto-initializing PostgreSQL database schema inside Dokploy...');
+        const schemaPath = path.join(process.cwd(), 'postgres-schema.sql');
         if (fs.existsSync(schemaPath)) {
           const rawSql = fs.readFileSync(schemaPath, 'utf8');
           const queries = rawSql
@@ -1774,9 +1774,9 @@ export class SaintFrancisDB {
             await connection.query(query);
           }
           await connection.query('SET FOREIGN_KEY_CHECKS = 1');
-          console.log('✅ MySQL Database auto-provisioned successfully from mysql-schema.sql!');
+          console.log('✅ PostgreSQL Database auto-provisioned successfully from postgres-schema.sql!');
         } else {
-          console.warn('⚠️ WARNING: mysql-schema.sql not found at ' + schemaPath);
+          console.warn('⚠️ WARNING: postgres-schema.sql not found at ' + schemaPath);
         }
       }
 

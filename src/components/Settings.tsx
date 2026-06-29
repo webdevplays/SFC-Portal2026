@@ -291,7 +291,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
     const element = document.createElement("a");
     const file = new Blob([exportedData.sql], { type: 'text/sql' });
     element.href = URL.createObjectURL(file);
-    element.download = `saint-francis-mysql-dump-${new Date().toISOString().slice(0, 10)}.sql`;
+    element.download = `saint-francis-postgres-dump-${new Date().toISOString().slice(0, 10)}.sql`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -901,7 +901,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
     const element = document.createElement("a");
     const file = new Blob([sqlSchema], { type: 'text/sql' });
     element.href = URL.createObjectURL(file);
-    element.download = "mysql-schema.sql";
+    element.download = "postgres-schema.sql";
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -931,7 +931,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
           }`}
         >
           <Database className="h-4 w-4 text-blue-600" />
-          cPanel & MySQL Integration
+          Dokploy & PostgreSQL Integration
         </button>
         <button
           onClick={() => setActiveTab('guide')}
@@ -942,7 +942,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
           }`}
         >
           <BookOpen className="h-4 w-4 text-indigo-600" />
-          cPanel & MySQL Deployment Guide
+          Dokploy & PostgreSQL Deployment Guide
         </button>
         <button
           onClick={() => setActiveTab('export')}
@@ -1292,11 +1292,11 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
         <div className="space-y-6">
           <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-xl p-6 shadow-sm border border-indigo-950 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-2">
-              <span className="bg-sky-500/20 text-sky-300 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider">cPanel hosting module is armed</span>
-              <h2 className="text-xl font-bold font-sans tracking-tight">Active phpMyAdmin database schema is generated!</h2>
+              <span className="bg-sky-500/20 text-sky-300 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider">Dokploy hosting module is armed</span>
+              <h2 className="text-xl font-bold font-sans tracking-tight">Active PostgreSQL database schema is generated!</h2>
               <p className="text-indigo-200 max-w-xl text-[11px] leading-relaxed">
-                We have fully optimized the clinic database records schema structure specifically for MySQL deployment. 
-                Below you can review the live database status, copy the ready-to-run DDL sql script syntax, or download the direct `.sql` file to import into cPanel.
+                We have fully optimized the clinic database records schema structure specifically for PostgreSQL deployment. 
+                Below you can review the live database status, copy the ready-to-run DDL sql script syntax, or download the direct `.sql` file to import.
               </p>
             </div>
             
@@ -1304,12 +1304,12 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
               onClick={handleDownloadFile}
               className="bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-extrabold px-5 py-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg transition text-[11px] uppercase tracking-wider shrink-0"
             >
-              <Download className="h-4 w-4" /> Download config mysql-schema.sql
+              <Download className="h-4 w-4" /> Download config postgres-schema.sql
             </button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* cPanel Connection Status Panel */}
+            {/* Connection Status Panel */}
             <div className="lg:col-span-1 bg-white p-5 rounded-xl border border-slate-100 shadow-sm space-y-4">
               <div className="border-b pb-3 flex items-center justify-between">
                 <div>
@@ -1338,7 +1338,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                     <div className={`h-2.5 w-2.5 rounded-full mt-1 shrink-0 ${mysqlStatus.connected ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`} />
                     <div className="space-y-1">
                       <strong className="font-bold text-xs">
-                        {mysqlStatus.connected ? 'MySQL Host Connected!' : 'Local / JSON DB Fallback'}
+                        {mysqlStatus.connected ? 'PostgreSQL Host Connected!' : 'Local / JSON DB Fallback'}
                       </strong>
                       <p className="opacity-90 leading-relaxed text-[10px]">{mysqlStatus.message}</p>
                     </div>
@@ -1362,7 +1362,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">DB_PORT:</span>
-                        <span className="font-bold text-slate-700">{mysqlStatus.config?.port || '3306'}</span>
+                        <span className="font-bold text-slate-700">{mysqlStatus.config?.port || '5432'}</span>
                       </div>
                     </div>
                   </div>
@@ -1373,7 +1373,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                       <span>How to switch database?</span>
                     </div>
                     <p>
-                      Add database keys into your project's `.env` file on cPanel. The node backend is built with <strong>mysql2</strong> to auto-connect upon startup.
+                      Add PostgreSQL connection keys into your project's `.env` file on Dokploy. The node backend uses <strong>pg</strong> client to auto-connect.
                     </p>
                   </div>
                 </div>
@@ -1393,7 +1393,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                     <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
                       <FileText className="h-4 w-4 text-emerald-600" /> SQL DDL schema syntax script
                     </h3>
-                    <p className="text-slate-400 text-[10px] mt-0.5">phpMyAdmin direct import compatible structures</p>
+                    <p className="text-slate-400 text-[10px] mt-0.5">PostgreSQL direct import compatible structures</p>
                   </div>
 
                   <button
@@ -1413,7 +1413,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                 </div>
 
                 <div className="bg-slate-900 text-slate-300 font-mono text-[9px] p-4 rounded-xl border border-slate-950 h-72 overflow-y-auto leading-relaxed relative">
-                  <div className="absolute top-2 right-2 bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[8px] font-sans font-bold tracking-wider">MYSQL SCHEMA</div>
+                  <div className="absolute top-2 right-2 bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[8px] font-sans font-bold tracking-wider">POSTGRES SCHEMA</div>
                   <pre>{sqlSchema || '-- Loading database SQL script...'}</pre>
                 </div>
               </div>
@@ -1422,9 +1422,9 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                 <strong className="text-blue-900 block mb-1 text-xs uppercase font-extrabold">📌 Quick Setup Instruction sequence:</strong>
                 <ol className="list-decimal pl-4 space-y-1">
                   <li>Download the file above or copy the contents.</li>
-                  <li>Enter your cPanel account, create a new MySQL database name in <strong>MySQL Databases wizard</strong>.</li>
-                  <li>Open <strong>phpMyAdmin</strong>, select your target database, and navigate to the <strong>Import</strong> tab.</li>
-                  <li>Upload the SQL script, and hit <strong>Import / Go</strong> to seamlessly create 12 tables and inject standard diagnostic baseline seeds instantly!</li>
+                  <li>Enter your Dokploy account, create a new PostgreSQL database in <strong>Databases wizard</strong>.</li>
+                  <li>Use your preferred client or Dokploy utility tab to run the schema queries.</li>
+                  <li>Execute the script to instantly establish all 16 tables and inject baseline operational seeds!</li>
                 </ol>
               </div>
 
@@ -1437,7 +1437,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
         <div className="space-y-6">
           <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-xl p-6 shadow-md border border-indigo-950 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-2">
-              <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold tracking-wider border border-indigo-500/20">Dokploy & MySQL Checklist Master</span>
+              <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold tracking-wider border border-indigo-500/20">Dokploy & PostgreSQL Checklist Master</span>
               <h2 className="text-xl font-extrabold font-sans tracking-tight">Dokploy Docker Web Hosting Deployment Handbook</h2>
               <p className="text-slate-305 max-w-2xl text-[11px] leading-relaxed">
                 Follow this interactive handbook step-by-step to deploy this React SPA and customized Node.js Express API server directly inside Dokploy Docker container environments.
@@ -1459,12 +1459,12 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
             {/* Step Walkthrough Cards */}
             <div className="xl:col-span-2 space-y-6">
               
-              {/* Part 1: Setting up MySQL on Dokploy */}
+              {/* Part 1: Setting up PostgreSQL on Dokploy */}
               <div className="bg-white p-5 rounded-xl border border-slate-150 shadow-sm space-y-4">
                 <div className="flex items-center gap-3 border-b pb-3">
                   <div className="bg-blue-100 text-blue-700 font-extrabold text-sm h-6 w-6 rounded-full flex items-center justify-center">1</div>
                   <div>
-                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 1: Create MySQL Database on Dokploy</h3>
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 1: Create PostgreSQL Database on Dokploy</h3>
                     <p className="text-slate-405 text-[10px]">Create databases inside the Dokploy panel and configure port bindings</p>
                   </div>
                 </div>
@@ -1475,7 +1475,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                     <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-650 font-semibold">
                       <li>Log in to your <strong>Dokploy</strong> dashboard.</li>
                       <li>Go to <strong>Databases</strong> on the left side menu, and click <strong>Create Database</strong>.</li>
-                      <li>Select <strong>MySQL</strong> as the engine. Define a name (e.g., <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px] font-mono text-indigo-700 font-bold">sfclinic-db</code>).</li>
+                      <li>Select <strong>PostgreSQL</strong> as the engine. Define a name (e.g., <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px] font-mono text-indigo-700 font-bold">sfclinic-db</code>).</li>
                       <li>Click <strong>Create</strong> to instantiate the database container.</li>
                     </ol>
                   </div>
@@ -1491,12 +1491,12 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                 </div>
               </div>
 
-              {/* Part 2: Import SQL Script with phpMyAdmin / Adminer */}
+              {/* Part 2: Import SQL Script with pgAdmin / Adminer */}
               <div className="bg-white p-5 rounded-xl border border-slate-150 shadow-sm space-y-4">
                 <div className="flex items-center gap-3 border-b pb-3">
                   <div className="bg-emerald-100 text-emerald-700 font-extrabold text-sm h-6 w-6 rounded-full flex items-center justify-center">2</div>
                   <div>
-                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 2: Database Migration with Adminer / phpMyAdmin</h3>
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 2: Database Migration with Adminer / pgAdmin</h3>
                     <p className="text-slate-405 text-[10px]">Establish tables, indices, and setup baseline dataset feeds</p>
                   </div>
                 </div>
@@ -1507,11 +1507,11 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                   </p>
                   <div className="p-3.5 bg-emerald-50/50 border border-emerald-100 rounded-xl space-y-2.5">
                     <ol className="list-decimal pl-4.5 space-y-1.5 text-emerald-900">
-                      <li>Use the <strong>Database External Connection</strong> details to log in via your favorite DB manager (Adminer, DBeaver, phpMyAdmin, or TablePlus).</li>
+                      <li>Use the <strong>Database External Connection</strong> details to log in via your favorite DB manager (Adminer, DBeaver, pgAdmin, or TablePlus).</li>
                       <li>Select your newly provisioned database.</li>
                       <li>Go to the <strong>SQL Command / Import</strong> utility tab.</li>
-                      <li>Load and execute the <strong className="font-bold underline">mysql-schema.sql</strong> file.</li>
-                      <li>This automatically instantiates all 12 tables and injects baseline diagnostic and clinical administrative records seamlessly!</li>
+                      <li>Load and execute the <strong className="font-bold underline">postgres-schema.sql</strong> file.</li>
+                      <li>This automatically instantiates all 16 tables and injects baseline operational seeds seamlessly!</li>
                     </ol>
                   </div>
                 </div>
@@ -1533,7 +1533,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                     <button
                       type="button"
                       onClick={() => {
-                        const envPlaceholder = `# Dokploy MySQL Database Connection (URL format)\nDATABASE_URL=mysql://root:yourpassword@mysql-container-host:3306/sfclinic-db\n\n# Or separate variables\nDB_HOST=mysql-container-host\nDB_USER=root\nDB_PASSWORD=your_secure_password\nDB_NAME=sfclinic-db\nDB_PORT=3306`;
+                        const envPlaceholder = `# Dokploy PostgreSQL Database Connection (URL format)\nDATABASE_URL=postgresql://postgres:yourpassword@postgres-container-host:5432/sfclinic-db\n\n# Or separate variables\nDB_HOST=postgres-container-host\nDB_USER=postgres\nDB_PASSWORD=your_secure_password\nDB_NAME=sfclinic-db\nDB_PORT=5432`;
                         navigator.clipboard.writeText(envPlaceholder);
                         setEnvCopied(true);
                         setTimeout(() => setEnvCopied(false), 2000);
@@ -1547,17 +1547,17 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
 
                   <div className="bg-slate-900 border border-slate-950 p-3.5 rounded-xl text-slate-300 font-mono text-[10px] leading-relaxed">
                     <span className="text-slate-500 block select-none"># Dokploy connection URI formats are parsed natively:</span>
-                    <div>DATABASE_URL=<span className="text-emerald-400 font-bold">mysql://root:password@dokploy-mysql:3306/sfclinic-db</span></div>
+                    <div>DATABASE_URL=<span className="text-emerald-400 font-bold">postgresql://postgres:password@dokploy-postgres:5432/sfclinic-db</span></div>
                     <span className="text-slate-500 block select-none mt-2"># Or map individual container keys:</span>
-                    <div>DB_HOST=<span className="text-emerald-400 font-bold">dokploy-mysql</span></div>
-                    <div>DB_USER=<span className="text-amber-400 font-bold">root</span></div>
+                    <div>DB_HOST=<span className="text-emerald-400 font-bold">dokploy-postgres</span></div>
+                    <div>DB_USER=<span className="text-amber-400 font-bold">postgres</span></div>
                     <div>DB_PASSWORD=<span className="text-pink-400 font-bold">your_secure_passcode</span></div>
                     <div>DB_NAME=<span className="text-sky-400 font-bold">sfclinic-db</span></div>
-                    <div>DB_PORT=<span className="text-teal-400 font-bold">3306</span></div>
+                    <div>DB_PORT=<span className="text-teal-400 font-bold">5432</span></div>
                   </div>
                   
                   <div className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-xl leading-relaxed text-[11px] text-indigo-950 font-semibold">
-                    💡 DOKPLOY COMPATIBILITY NOTE: Our customized MySQL DB connector natively parses both consolidated Connection URLs (<code className="bg-indigo-100 text-indigo-800 px-1 py-0.5 rounded text-[9.5px]">DATABASE_URL</code>, <code className="bg-indigo-100 text-indigo-800 px-1 py-0.5 rounded text-[9.5px]">MYSQL_URL</code>) and standard individual environment variables.
+                    💡 DOKPLOY COMPATIBILITY NOTE: Our customized PostgreSQL DB connector natively parses both consolidated Connection URLs (<code className="bg-indigo-100 text-indigo-800 px-1 py-0.5 rounded text-[9.5px]">DATABASE_URL</code>, <code className="bg-indigo-100 text-indigo-800 px-1 py-0.5 rounded text-[9.5px]">POSTGRES_URL</code>) and standard individual environment variables.
                   </div>
                 </div>
               </div>
@@ -1589,7 +1589,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                       </div>
                       <div className="pt-2 flex flex-col gap-1.5">
                         <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">3. ENVIRONMENT VARIABLES</span>
-                        <p className="text-[10px] text-slate-505 leading-normal">Paste your MySQL credentials and set <code className="bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold">NODE_ENV=production</code> inside the Environment tab.</p>
+                        <p className="text-[10px] text-slate-505 leading-normal">Paste your PostgreSQL credentials and set <code className="bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold">NODE_ENV=production</code> inside the Environment tab.</p>
                       </div>
                     </div>
 
@@ -1940,10 +1940,10 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-rose-700">
                   <Database className="h-4.5 w-4.5 text-rose-600" />
-                  <strong className="text-xs uppercase tracking-tight font-extrabold text-slate-800">MySQL Database Schema & Records Dump (.sql)</strong>
+                  <strong className="text-xs uppercase tracking-tight font-extrabold text-slate-800">PostgreSQL Database Schema & Records Dump (.sql)</strong>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed font-semibold">
-                  Compiles full relational database definitions, index constraints, tables, auto-increments, and raw record insert lines. Highly recommended for standard system updates, local offline hosting migrations (XAMPP, MySQL, cPanel phpMyAdmin, VPS).
+                  Compiles full relational database definitions, index constraints, tables, and raw record insert lines. Highly recommended for standard system updates, local offline hosting migrations, or Dokploy PostgreSQL environments.
                 </p>
               </div>
 

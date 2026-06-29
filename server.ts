@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { createServer as createViteServer } from 'vite';
 import { SaintFrancisDB } from './server/db';
-import { testMySQLConnection, getMySQLConfig, getMySQLPool, shouldAttemptMySQL, markMySQLFailure } from './server/mysql-connector';
+import { testPostgresConnection as testMySQLConnection, getPostgresConfig as getMySQLConfig, getPostgresPool as getMySQLPool, shouldAttemptPostgres as shouldAttemptMySQL, markPostgresFailure as markMySQLFailure } from './server/postgres-connector';
 import { 
   User, Household, HouseholdMember, Dependent, 
   Group, PaidPayroll, HealthRecord, SiteSettings 
@@ -5209,7 +5209,7 @@ app.get('/api/mysql-status', async (req, res) => {
 
 // SQL Schema Download Endpoint
 app.get('/api/mysql-schema', (req, res) => {
-  const schemaPath = path.join(process.cwd(), 'mysql-schema.sql');
+  const schemaPath = path.join(process.cwd(), 'postgres-schema.sql');
   if (fs.existsSync(schemaPath)) {
     const rawSql = fs.readFileSync(schemaPath, 'utf8');
     res.json({ sql: rawSql });
@@ -5246,7 +5246,7 @@ app.get('/api/export-data', async (req, res) => {
     const jsonString = JSON.stringify(stateToExport, null, 2);
 
     // 3. Generate SQL script file with drop/creates & current record inserts
-    const schemaPath = path.join(process.cwd(), 'mysql-schema.sql');
+    const schemaPath = path.join(process.cwd(), 'postgres-schema.sql');
     let sqlContent = '';
 
     if (fs.existsSync(schemaPath)) {
@@ -5529,7 +5529,7 @@ app.get('/api/export-data/download', async (req, res) => {
       outStream.end();
     } else {
       // SQL Format
-      const schemaPath = path.join(process.cwd(), 'mysql-schema.sql');
+      const schemaPath = path.join(process.cwd(), 'postgres-schema.sql');
       if (fs.existsSync(schemaPath)) {
         const rawSchema = fs.readFileSync(schemaPath, 'utf8');
         const parts = rawSchema.split('-- 3. INITIAL SEED INJECTIONS');
