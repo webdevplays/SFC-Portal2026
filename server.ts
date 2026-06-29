@@ -7,8 +7,8 @@ import fs from 'fs';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _filename = typeof __filename !== 'undefined' ? __filename : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
+const _dirname = typeof __dirname !== 'undefined' ? __dirname : (typeof _filename === 'string' && _filename ? path.dirname(_filename) : '');
 import { createServer as createViteServer } from 'vite';
 import { SaintFrancisDB } from './server/db';
 import { testPostgresConnection as testMySQLConnection, getPostgresConfig as getMySQLConfig, getPostgresPool as getMySQLPool, shouldAttemptPostgres as shouldAttemptMySQL, markPostgresFailure as markMySQLFailure } from './server/postgres-connector';
@@ -5981,8 +5981,8 @@ async function startServer() {
   let distPath = path.join(process.cwd(), 'dist');
   const possiblePaths = [
     path.join(process.cwd(), 'dist'),
-    path.join(__dirname, 'dist'),
-    __dirname,
+    path.join(_dirname, 'dist'),
+    _dirname,
     path.join(process.cwd(), 'public_html', 'dist'),
     path.join(process.cwd())
   ];
@@ -6061,7 +6061,7 @@ async function startServer() {
     try { cwdFiles = fs.readdirSync(process.cwd()); } catch(e: any) { cwdFiles = ['Error: ' + e.message]; }
     
     let dirnameFiles: string[] = [];
-    try { dirnameFiles = fs.readdirSync(__dirname); } catch(e: any) { dirnameFiles = ['Error: ' + e.message]; }
+    try { dirnameFiles = fs.readdirSync(_dirname); } catch(e: any) { dirnameFiles = ['Error: ' + e.message]; }
     
     const diagnostics = possiblePaths.map(p => {
       const exists = fs.existsSync(p);
@@ -6106,7 +6106,7 @@ async function startServer() {
             
             <div>
               <strong>Target Selected CWD:</strong> <code>${process.cwd()}</code><br/>
-              <strong>Target Selected __dirname:</strong> <code>${__dirname}</code><br/>
+              <strong>Target Selected __dirname:</strong> <code>${_dirname}</code><br/>
               <strong>Target Selected distPath:</strong> <code>${distPath}</code><br/>
               <strong>Target index.html Expected At:</strong> <code>${targetIndexHtml}</code> (Exists: <span class="${fs.existsSync(targetIndexHtml) ? 'success' : 'danger'}">${fs.existsSync(targetIndexHtml)}</span>)<br/>
               <strong>foundStaticDist flag:</strong> <code>${foundStaticDist}</code>
