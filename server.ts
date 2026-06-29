@@ -9,7 +9,6 @@ import { fileURLToPath } from 'url';
 
 const _filename = typeof __filename !== 'undefined' ? __filename : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : (typeof _filename === 'string' && _filename ? path.dirname(_filename) : '');
-import { createServer as createViteServer } from 'vite';
 import { SaintFrancisDB } from './server/db';
 import { testPostgresConnection as testMySQLConnection, getPostgresConfig as getMySQLConfig, getPostgresPool as getMySQLPool, shouldAttemptPostgres as shouldAttemptMySQL, markPostgresFailure as markMySQLFailure } from './server/postgres-connector';
 import { 
@@ -5993,7 +5992,8 @@ async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     try {
       console.log("[Static Server] Initializing Vite development server middleware...");
-      const vite = await createViteServer({
+      const { createServer } = await import('vite');
+      const vite = await createServer({
         server: { middlewareMode: true },
         appType: "spa",
       });

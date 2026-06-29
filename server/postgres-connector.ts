@@ -20,13 +20,20 @@ export const getPostgresConfig = () => {
   // Environment Setup, fill in your actual PostgreSQL database credentials here.
   // -----------------------------------------------------------------------------
   const DOKPLOY_FALLBACK_HOST = 'localhost';
-  const DOKPLOY_FALLBACK_USER = 'sfcuser';
-  const DOKPLOY_FALLBACK_PASSWORD = 'Saintfrancisclinic2026.';
-  const DOKPLOY_FALLBACK_DB = 'sfcdb';
+  const DOKPLOY_FALLBACK_USER = 'postgres';
+  const DOKPLOY_FALLBACK_PASSWORD = '';
+  const DOKPLOY_FALLBACK_DB = 'sfclinic';
   const DOKPLOY_FALLBACK_PORT = '5432';
 
   // Dokploy often injects DATABASE_URL, POSTGRES_URL, or POSTGRES_PRIVATE_URL
-  const connectionUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRIVATE_URL || '';
+  const connectionUrl = process.env.DATABASE_URL || 
+                        process.env.POSTGRES_URL || 
+                        process.env.POSTGRES_PRIVATE_URL || 
+                        process.env.DB_URL || 
+                        process.env.POSTGRES_CONNECTION_URL || 
+                        process.env.POSTGRESQL_URL || 
+                        process.env.DB_CONNECTION_URL || 
+                        '';
   
   let parsedUrlConfig: {
     host?: string;

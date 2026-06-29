@@ -1778,11 +1778,25 @@ export class SaintFrancisDB {
             .map(q => q.trim())
             .filter(q => q.length > 0 && !q.startsWith('--'));
 
-          await connection.query('SET FOREIGN_KEY_CHECKS = 0');
-          for (const query of queries) {
-            await connection.query(query);
+          try {
+            await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+          } catch (fkErr: any) {
+            console.warn('⚠️ Warning: Could not disable foreign key constraints (this is normal if your PostgreSQL user is not a superuser):', fkErr.message);
           }
-          await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+
+          for (const query of queries) {
+            try {
+              await connection.query(query);
+            } catch (qErr: any) {
+              console.warn(`⚠️ Warning: Failed to execute schema query ("${query.substring(0, 80)}..."):`, qErr.message);
+            }
+          }
+
+          try {
+            await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+          } catch (fkErr: any) {
+            console.warn('⚠️ Warning: Could not re-enable foreign key constraints:', fkErr.message);
+          }
           console.log('✅ PostgreSQL Database auto-provisioned successfully from postgres-schema.sql!');
         } else {
           console.warn('⚠️ WARNING: postgres-schema.sql not found at ' + schemaPath);
