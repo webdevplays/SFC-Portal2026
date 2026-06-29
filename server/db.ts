@@ -205,7 +205,16 @@ export class SaintFrancisDB {
 
     const sfcBackupPath = path.join(process.cwd(), 'sfc-backup.json');
     const sfcBackupPathUpper = path.join(process.cwd(), 'SFC-Backup.json');
-    const targetBackupPath = fs.existsSync(sfcBackupPath) ? sfcBackupPath : (fs.existsSync(sfcBackupPathUpper) ? sfcBackupPathUpper : null);
+    const saintFrancisDbPath = path.join(process.cwd(), 'saint-francis-db.json');
+    const saintFrancisDbBackupPath = path.join(process.cwd(), 'saint-francis-db.json.backup');
+    
+    const targetBackupPath = fs.existsSync(saintFrancisDbPath) 
+      ? saintFrancisDbPath 
+      : (fs.existsSync(saintFrancisDbBackupPath) 
+        ? saintFrancisDbBackupPath 
+        : (fs.existsSync(sfcBackupPath) 
+          ? sfcBackupPath 
+          : (fs.existsSync(sfcBackupPathUpper) ? sfcBackupPathUpper : null)));
 
     if (targetBackupPath) {
       console.log(`📦 Found user-provided backup ${path.basename(targetBackupPath)}! Proceeding to auto-import...`);
