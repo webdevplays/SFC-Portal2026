@@ -5192,6 +5192,17 @@ app.get('/api/db-status', async (req, res) => {
 app.get('/api/mysql-status', async (req, res) => {
   const force = req.query.force === 'true';
   const result = await testMySQLConnection(force);
+  
+  if (force && result.connected) {
+    try {
+      // Instantly load the state from PostgreSQL if the connection test succeeded
+      await SaintFrancisDB.loadFromDB(true);
+      console.log('✅ Reloaded database state from PostgreSQL after a successful manual/forced connection test!');
+    } catch (loadErr: any) {
+      console.error('❌ Failed to reload database state after successful connection:', loadErr.message);
+    }
+  }
+
   const config = getMySQLConfig();
   res.json({
     connected: result.connected,

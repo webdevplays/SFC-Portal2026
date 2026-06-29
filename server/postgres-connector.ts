@@ -19,10 +19,10 @@ export const getPostgresConfig = () => {
   // If your Dokploy container environment variables fail to load correctly from the
   // Environment Setup, fill in your actual PostgreSQL database credentials here.
   // -----------------------------------------------------------------------------
-  const DOKPLOY_FALLBACK_HOST = 'localhost';
-  const DOKPLOY_FALLBACK_USER = 'postgres';
-  const DOKPLOY_FALLBACK_PASSWORD = '';
-  const DOKPLOY_FALLBACK_DB = 'sfclinic';
+  const DOKPLOY_FALLBACK_HOST = 'sfc-portal-sfcpostdb-snp1ir';
+  const DOKPLOY_FALLBACK_USER = 'sfcuser';
+  const DOKPLOY_FALLBACK_PASSWORD = 'Saintfrancisclinic2026.';
+  const DOKPLOY_FALLBACK_DB = 'sfcdb';
   const DOKPLOY_FALLBACK_PORT = '5432';
 
   // Dokploy often injects DATABASE_URL, POSTGRES_URL, or POSTGRES_PRIVATE_URL
@@ -89,6 +89,19 @@ export const getPostgresConfig = () => {
                   DOKPLOY_FALLBACK_PORT
                 );
 
+  // Dynamically determine SSL configuration
+  let ssl: any = undefined;
+  const isSSLEnabled = process.env.DB_SSL === 'true' || 
+                       process.env.POSTGRES_SSL === 'true' ||
+                       (connectionUrl && (connectionUrl.includes('sslmode=require') || connectionUrl.includes('ssl=true') || connectionUrl.includes('sslmode=prefer')));
+
+  if (isSSLEnabled) {
+    ssl = { rejectUnauthorized: false };
+  } else if (host && host !== 'localhost' && host !== '127.0.0.1' && host.includes('.') && !host.startsWith('192.168.') && !host.startsWith('10.') && !host.startsWith('172.')) {
+    // Remote internet databases (e.g., Supabase, Neon, or public Dokploy PostgreSQL) usually require SSL
+    ssl = { rejectUnauthorized: false };
+  }
+
   return {
     connectionString: connectionUrl || undefined,
     host,
@@ -96,6 +109,7 @@ export const getPostgresConfig = () => {
     password,
     database,
     port: parseInt(rawPort, 10),
+    ssl,
     max: 10, // maximum pool size
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000 // 5 seconds connect timeout to fail-fast
