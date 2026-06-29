@@ -1,7 +1,7 @@
 [phases.install]
 cmds = [
   "rm -f package-lock.json",
-  "npm install --include=optional"
+  "npm install"
 ]
 
 [phases.build]
