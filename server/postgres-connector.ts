@@ -355,6 +355,33 @@ class PgConnectionAdapter {
     return this.query<T>(sql, params);
   }
 
+  async beginTransaction(): Promise<void> {
+    try {
+      await this.client.query('BEGIN');
+    } catch (err) {
+      console.error('[PgConnectionAdapter] Failed to BEGIN transaction:', err);
+      throw err;
+    }
+  }
+
+  async commit(): Promise<void> {
+    try {
+      await this.client.query('COMMIT');
+    } catch (err) {
+      console.error('[PgConnectionAdapter] Failed to COMMIT transaction:', err);
+      throw err;
+    }
+  }
+
+  async rollback(): Promise<void> {
+    try {
+      await this.client.query('ROLLBACK');
+    } catch (err) {
+      console.error('[PgConnectionAdapter] Failed to ROLLBACK transaction:', err);
+      throw err;
+    }
+  }
+
   release() {
     if ('release' in this.client) {
       this.client.release();
