@@ -5,6 +5,10 @@ import expressInstance from 'express';
 import path from 'path';
 import fs from 'fs';
 import zlib from 'zlib';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { createServer as createViteServer } from 'vite';
 import { SaintFrancisDB } from './server/db';
 import { testMySQLConnection, getMySQLConfig, getMySQLPool, shouldAttemptMySQL, markMySQLFailure } from './server/mysql-connector';

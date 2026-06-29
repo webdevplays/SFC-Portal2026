@@ -22,12 +22,82 @@ export const getMySQLConfig = () => {
   const CPANEL_FALLBACK_DB = '';                        // Enter your database name here (e.g., 'youruser_sfclinic')
   const CPANEL_FALLBACK_PORT = '3306';                  // MySQL port number (standard 3306)
 
+  // Dokploy, Coolify, and other Docker-based hosting platforms often inject standard connection URLs/URIs
+  const connectionUrl = process.env.DATABASE_URL || process.env.MYSQL_URL || process.env.MYSQL_PRIVATE_URL || '';
+  
+  let parsedUrlConfig: {
+    host?: string;
+    user?: string;
+    password?: string;
+    database?: string;
+    port?: number;
+  } = {};
+
+  if (connectionUrl && (connectionUrl.startsWith('mysql://') || connectionUrl.startsWith('mysql2://'))) {
+    try {
+      // Safely parse MySQL URI
+      const cleanUrl = connectionUrl.replace(/^mysql2?:\/\//, '');
+      const [authAndHost, dbPart] = cleanUrl.split('/');
+      const [auth, hostAndPort] = authAndHost.includes('@') ? authAndHost.split('@') : ['', authAndHost];
+      
+      const [user, password] = auth.includes(':') ? auth.split(':').map(decodeURIComponent) : [auth, ''];
+      const [host, portStr] = hostAndPort.includes(':') ? hostAndPort.split(':') : [hostAndPort, '3306'];
+      
+      const dbName = dbPart ? dbPart.split('?')[0] : '';
+      
+      parsedUrlConfig = {
+        host: host || undefined,
+        user: user || undefined,
+        password: password || undefined,
+        database: dbName || undefined,
+        port: portStr ? parseInt(portStr, 10) : undefined
+      };
+      console.log('🔗 Successfully parsed MySQL Connection URL from environment variables for deployment.');
+    } catch (urlErr: any) {
+      console.warn('⚠️ Warning: Failed to parse MySQL connection URL, falling back to individual environment variables:', urlErr.message);
+    }
+  }
+
+  // Support multiple common environment variable naming standards across cPanel, Dokploy, Heroku, Coolify, etc.
+  const host = parsedUrlConfig.host || 
+               process.env.DB_HOST || 
+               process.env.MYSQL_HOST || 
+               process.env.MYSQLHOST || 
+               CPANEL_FALLBACK_HOST;
+               
+  const user = parsedUrlConfig.user || 
+               process.env.DB_USER || 
+               process.env.MYSQL_USER || 
+               process.env.MYSQLUSER || 
+               CPANEL_FALLBACK_USER;
+               
+  const password = parsedUrlConfig.password !== undefined ? parsedUrlConfig.password : (
+                   process.env.DB_PASSWORD || 
+                   process.env.MYSQL_PASSWORD || 
+                   process.env.MYSQLPASSWORD || 
+                   CPANEL_FALLBACK_PASSWORD
+                 );
+                 
+  const database = parsedUrlConfig.database || 
+                   process.env.DB_NAME || 
+                   process.env.DB_DATABASE || 
+                   process.env.MYSQL_DATABASE || 
+                   process.env.MYSQLDATABASE || 
+                   CPANEL_FALLBACK_DB;
+                   
+  const rawPort = parsedUrlConfig.port ? String(parsedUrlConfig.port) : (
+                  process.env.DB_PORT || 
+                  process.env.MYSQL_PORT || 
+                  process.env.MYSQLPORT || 
+                  CPANEL_FALLBACK_PORT
+                );
+
   return {
-    host: process.env.DB_HOST || CPANEL_FALLBACK_HOST,
-    user: process.env.DB_USER || CPANEL_FALLBACK_USER,
-    password: process.env.DB_PASSWORD || CPANEL_FALLBACK_PASSWORD,
-    database: process.env.DB_NAME || CPANEL_FALLBACK_DB,
-    port: parseInt(process.env.DB_PORT || CPANEL_FALLBACK_PORT, 10),
+    host,
+    user,
+    password,
+    database,
+    port: parseInt(rawPort, 10),
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
