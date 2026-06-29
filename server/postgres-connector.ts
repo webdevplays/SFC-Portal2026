@@ -25,15 +25,29 @@ export const getPostgresConfig = () => {
   const DOKPLOY_FALLBACK_DB = 'sfcdb';
   const DOKPLOY_FALLBACK_PORT = '5432';
 
+  // Helper to sanitize quotes and spaces from environment variables
+  const sanitizeEnv = (val: string | undefined): string => {
+    if (!val) return '';
+    let s = val.trim();
+    if (s.startsWith('"') && s.endsWith('"')) {
+      s = s.substring(1, s.length - 1).trim();
+    }
+    if (s.startsWith("'") && s.endsWith("'")) {
+      s = s.substring(1, s.length - 1).trim();
+    }
+    return s;
+  };
+
   // Dokploy often injects DATABASE_URL, POSTGRES_URL, or POSTGRES_PRIVATE_URL
-  const connectionUrl = process.env.DATABASE_URL || 
-                        process.env.POSTGRES_URL || 
-                        process.env.POSTGRES_PRIVATE_URL || 
-                        process.env.DB_URL || 
-                        process.env.POSTGRES_CONNECTION_URL || 
-                        process.env.POSTGRESQL_URL || 
-                        process.env.DB_CONNECTION_URL || 
-                        '';
+  const connectionUrl = sanitizeEnv(
+    process.env.DATABASE_URL || 
+    process.env.POSTGRES_URL || 
+    process.env.POSTGRES_PRIVATE_URL || 
+    process.env.DB_URL || 
+    process.env.POSTGRES_CONNECTION_URL || 
+    process.env.POSTGRESQL_URL || 
+    process.env.DB_CONNECTION_URL
+  );
   
   let parsedUrlConfig: {
     host?: string;
@@ -60,35 +74,22 @@ export const getPostgresConfig = () => {
     }
   }
 
-  const envHost = process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_PRIVATE_HOST;
-  const isAISandbox = 
-    process.env.K_SERVICE?.includes('ais-dev') || 
-    process.env.K_SERVICE?.includes('ais-pre') || 
-    process.env.AUTHORIZED_SERVICE_ACCOUNT_EMAIL?.includes('ais-sandbox') ||
-    process.env.APP_URL?.includes('ais-dev') ||
-    process.env.APP_URL?.includes('ais-pre') ||
-    process.env.DEFAULT_APP_PORT === '3000';
+  const envHost = sanitizeEnv(process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_PRIVATE_HOST);
+  const envUser = sanitizeEnv(process.env.DB_USER || process.env.POSTGRES_USER);
+  const envPassword = sanitizeEnv(process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD);
+  const envDatabase = sanitizeEnv(process.env.DB_NAME || process.env.DB_DATABASE || process.env.POSTGRES_DB);
+  const envPort = sanitizeEnv(process.env.DB_PORT || process.env.POSTGRES_PORT);
 
-  const useFallback = (isAISandbox && (envHost === 'localhost' || envHost === '127.0.0.1' || !envHost)) || !envHost;
-
-  const host = parsedUrlConfig.host || (useFallback ? DOKPLOY_FALLBACK_HOST : (envHost || DOKPLOY_FALLBACK_HOST));
-               
-  const user = parsedUrlConfig.user || (useFallback ? DOKPLOY_FALLBACK_USER : (process.env.DB_USER || process.env.POSTGRES_USER || DOKPLOY_FALLBACK_USER));
-               
-  const password = parsedUrlConfig.password !== undefined ? parsedUrlConfig.password : (
-                   useFallback ? DOKPLOY_FALLBACK_PASSWORD : (process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || DOKPLOY_FALLBACK_PASSWORD)
-                 );
-                  
-  const database = parsedUrlConfig.database || (useFallback ? DOKPLOY_FALLBACK_DB : (process.env.DB_NAME || process.env.DB_DATABASE || process.env.POSTGRES_DB || DOKPLOY_FALLBACK_DB));
-                    
-  const rawPort = parsedUrlConfig.port ? String(parsedUrlConfig.port) : (
-                  useFallback ? DOKPLOY_FALLBACK_PORT : (process.env.DB_PORT || process.env.POSTGRES_PORT || DOKPLOY_FALLBACK_PORT)
-                );
+  const host = parsedUrlConfig.host || envHost || DOKPLOY_FALLBACK_HOST;
+  const user = parsedUrlConfig.user || envUser || DOKPLOY_FALLBACK_USER;
+  const password = parsedUrlConfig.password !== undefined ? parsedUrlConfig.password : (envPassword || DOKPLOY_FALLBACK_PASSWORD);
+  const database = parsedUrlConfig.database || envDatabase || DOKPLOY_FALLBACK_DB;
+  const rawPort = parsedUrlConfig.port ? String(parsedUrlConfig.port) : (envPort || DOKPLOY_FALLBACK_PORT);
 
   // Dynamically determine SSL configuration
   let ssl: any = undefined;
-  const isSSLEnabled = process.env.DB_SSL === 'true' || 
-                       process.env.POSTGRES_SSL === 'true' ||
+  const isSSLEnabled = sanitizeEnv(process.env.DB_SSL) === 'true' || 
+                       sanitizeEnv(process.env.POSTGRES_SSL) === 'true' ||
                        (connectionUrl && (connectionUrl.includes('sslmode=require') || connectionUrl.includes('ssl=true') || connectionUrl.includes('sslmode=prefer')));
 
   if (isSSLEnabled) {
@@ -98,8 +99,7 @@ export const getPostgresConfig = () => {
     ssl = { rejectUnauthorized: false };
   }
 
-  return {
-    connectionString: connectionUrl || undefined,
+  const config: any = {
     host,
     user,
     password,
@@ -108,8 +108,15 @@ export const getPostgresConfig = () => {
     ssl,
     max: 10, // maximum pool size
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000 // 5 seconds connect timeout to fail-fast
+    connectionTimeoutMillis: 5000, // 5 seconds connect timeout to fail-fast
   };
+
+  // Only pass connectionString as a fallback if we couldn't parse it successfully but a URL exists
+  if (connectionUrl && !parsedUrlConfig.host) {
+    config.connectionString = connectionUrl;
+  }
+
+  return config;
 };
 
 function isPrivateHost(host: string): boolean {
