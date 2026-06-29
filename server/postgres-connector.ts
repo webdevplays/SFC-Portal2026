@@ -270,7 +270,7 @@ export function translateMySQLToPostgres(sql: string, params: any[] = []): { sql
     'daysAbsent', 'totalLateMinutes', 'totalDeductions', 'totalEarned', 'breakdown'
   ];
 
-  const camelCaseRegex = new RegExp(`(?<!["'\\\\w])\\\\b(${camelCaseFields.join('|')})\\\\b(?!["'\\\\w])`, 'g');
+  const camelCaseRegex = new RegExp(`(?<!["'\\w])\\b(${camelCaseFields.join('|')})\\b(?!["'\\w])`, 'g');
   pgSql = pgSql.replace(camelCaseRegex, '"$1"');
 
   // Translate placeholders '?' to '$1', '$2', etc., expanding list arrays
