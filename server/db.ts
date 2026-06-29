@@ -1,10 +1,29 @@
 import fs from 'fs';
 import path from 'path';
+import { jsonrepair } from 'jsonrepair';
 import { 
   User, Barangay, Purok, Household, HouseholdMember, Dependent, 
   Group, PaidPayroll, HealthRecord, ActivityLog, SiteSettings, Notification, Timecard 
 } from '../src/types';
 import { getPostgresPool as getMySQLPool, shouldAttemptPostgres as shouldAttemptMySQL, markPostgresSuccess as markMySQLSuccess, markPostgresFailure as markMySQLFailure } from './postgres-connector';
+
+export function safeJsonParse(str: string, fallback: any = null): any {
+  if (!str || str.trim().length === 0) return fallback;
+  try {
+    return JSON.parse(str);
+  } catch (parseErr: any) {
+    console.warn('⚠️ [safeJsonParse] Standard JSON.parse failed. Attempting to repair with jsonrepair...');
+    try {
+      const repaired = jsonrepair(str);
+      const parsed = JSON.parse(repaired);
+      console.log('✅ [safeJsonParse] JSON successfully repaired and parsed!');
+      return parsed;
+    } catch (repairErr: any) {
+      console.error('❌ [safeJsonParse] JSON repair also failed:', repairErr.message);
+      throw parseErr;
+    }
+  }
+}
 
 const DB_FILE = path.join(process.cwd(), 'data', 'db.json');
 const DB_BACKUP_FILE = path.join(process.cwd(), 'data', 'db_backup.json');
@@ -188,7 +207,7 @@ export class SaintFrancisDB {
       if (activeFile) {
         const raw = fs.readFileSync(activeFile, 'utf8');
         if (raw && raw.trim().length > 0) {
-          const parsed = JSON.parse(raw);
+          const parsed = safeJsonParse(raw);
           if (parsed && typeof parsed === 'object') {
             const hhCount = Array.isArray(parsed.households) ? parsed.households.length : 0;
             const hrCount = Array.isArray(parsed.healthRecords) ? parsed.healthRecords.length : 0;
@@ -205,7 +224,16 @@ export class SaintFrancisDB {
 
     const sfcBackupPath = path.join(process.cwd(), 'sfc-backup.json');
     const sfcBackupPathUpper = path.join(process.cwd(), 'SFC-Backup.json');
-    const targetBackupPath = fs.existsSync(sfcBackupPath) ? sfcBackupPath : (fs.existsSync(sfcBackupPathUpper) ? sfcBackupPathUpper : null);
+    const saintFrancisDbPath = path.join(process.cwd(), 'saint-francis-db.json');
+    const saintFrancisDbBackupPath = path.join(process.cwd(), 'saint-francis-db.json.backup');
+    
+    const targetBackupPath = fs.existsSync(saintFrancisDbPath) 
+      ? saintFrancisDbPath 
+      : (fs.existsSync(saintFrancisDbBackupPath) 
+        ? saintFrancisDbBackupPath 
+        : (fs.existsSync(sfcBackupPath) 
+          ? sfcBackupPath 
+          : (fs.existsSync(sfcBackupPathUpper) ? sfcBackupPathUpper : null)));
 
     if (targetBackupPath) {
       console.log(`📦 Found user-provided backup ${path.basename(targetBackupPath)}! Proceeding to auto-import...`);
@@ -243,7 +271,7 @@ export class SaintFrancisDB {
         console.warn(`⚠️ Backup file is empty. Skipping import.`);
         return;
       }
-      const parsed = JSON.parse(rawData);
+      const parsed = safeJsonParse(rawData);
       if (!Array.isArray(parsed)) {
         console.warn(`⚠️ Backup root is not an array. Skipping import.`);
         return;
@@ -680,7 +708,7 @@ export class SaintFrancisDB {
       if (!rawData || rawData.trim().length === 0) {
         throw new Error('The file content is empty.');
       }
-      const parsed = JSON.parse(rawData);
+      const parsed = safeJsonParse(rawData);
 
       let activityLogsRaw: any[] = [];
       let barangaysRaw: any[] = [];
@@ -1614,7 +1642,7 @@ export class SaintFrancisDB {
       try {
         const data = fs.readFileSync(DB_FILE, 'utf8');
         if (data && data.trim().length > 0) {
-          this.state = JSON.parse(data);
+          this.state = safeJsonParse(data);
           loadedCorrectly = true;
         }
       } catch (err: any) {
@@ -1627,7 +1655,7 @@ export class SaintFrancisDB {
       try {
         const data = fs.readFileSync(DB_BACKUP_FILE, 'utf8');
         if (data && data.trim().length > 0) {
-          this.state = JSON.parse(data);
+          this.state = safeJsonParse(data);
           loadedCorrectly = true;
           console.log('🛡️ Fail-safe safeguard activated: Recovered and initialized state from redundant DB_BACKUP_FILE successfully.');
         }
@@ -1698,9 +1726,10 @@ export class SaintFrancisDB {
         try {
           const data = fs.readFileSync(DB_FILE, 'utf8');
           if (data && data.trim().length > 0) {
-            const parsed = JSON.parse(data);
+            const parsed = safeJsonParse(data);
             if (parsed && typeof parsed === 'object' && parsed.users) {
               this.state = parsed;
+              this.lastLocalLoadTime = now;
               this.lastLocalLoadTime = now;
               loadedCorrectly = true;
             }
@@ -1714,7 +1743,7 @@ export class SaintFrancisDB {
         try {
           const data = fs.readFileSync(DB_BACKUP_FILE, 'utf8');
           if (data && data.trim().length > 0) {
-            const parsed = JSON.parse(data);
+            const parsed = safeJsonParse(data);
             if (parsed && typeof parsed === 'object' && parsed.users) {
               this.state = parsed;
               this.lastLocalLoadTime = now;
@@ -1769,11 +1798,25 @@ export class SaintFrancisDB {
             .map(q => q.trim())
             .filter(q => q.length > 0 && !q.startsWith('--'));
 
-          await connection.query('SET FOREIGN_KEY_CHECKS = 0');
-          for (const query of queries) {
-            await connection.query(query);
+          try {
+            await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+          } catch (fkErr: any) {
+            console.warn('⚠️ Warning: Could not disable foreign key constraints (this is normal if your PostgreSQL user is not a superuser):', fkErr.message);
           }
-          await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+
+          for (const query of queries) {
+            try {
+              await connection.query(query);
+            } catch (qErr: any) {
+              console.warn(`⚠️ Warning: Failed to execute schema query ("${query.substring(0, 80)}..."):`, qErr.message);
+            }
+          }
+
+          try {
+            await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+          } catch (fkErr: any) {
+            console.warn('⚠️ Warning: Could not re-enable foreign key constraints:', fkErr.message);
+          }
           console.log('✅ PostgreSQL Database auto-provisioned successfully from postgres-schema.sql!');
         } else {
           console.warn('⚠️ WARNING: postgres-schema.sql not found at ' + schemaPath);

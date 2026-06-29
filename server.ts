@@ -7,9 +7,8 @@ import fs from 'fs';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-import { createServer as createViteServer } from 'vite';
+const _filename = typeof __filename !== 'undefined' ? __filename : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
+const _dirname = typeof __dirname !== 'undefined' ? __dirname : (typeof _filename === 'string' && _filename ? path.dirname(_filename) : '');
 import { SaintFrancisDB } from './server/db';
 import { testPostgresConnection as testMySQLConnection, getPostgresConfig as getMySQLConfig, getPostgresPool as getMySQLPool, shouldAttemptPostgres as shouldAttemptMySQL, markPostgresFailure as markMySQLFailure } from './server/postgres-connector';
 import { 
@@ -19,7 +18,16 @@ import {
 
 const express = expressInstance;
 const app = express();
-const RAW_PORT = process.env.PORT || '3000';
+
+const isAISandbox = 
+  process.env.K_SERVICE?.includes('ais-dev') || 
+  process.env.K_SERVICE?.includes('ais-pre') || 
+  process.env.AUTHORIZED_SERVICE_ACCOUNT_EMAIL?.includes('ais-sandbox') ||
+  process.env.APP_URL?.includes('ais-dev') ||
+  process.env.APP_URL?.includes('ais-pre') ||
+  process.env.DEFAULT_APP_PORT === '3000';
+
+const RAW_PORT = isAISandbox ? '3000' : (process.env.PORT || '3000');
 const isSocket = RAW_PORT.startsWith('/') || RAW_PORT.startsWith('\\') || isNaN(Number(RAW_PORT));
 const PORT = isSocket ? RAW_PORT : parseInt(RAW_PORT, 10);
 
@@ -5193,6 +5201,17 @@ app.get('/api/db-status', async (req, res) => {
 app.get('/api/mysql-status', async (req, res) => {
   const force = req.query.force === 'true';
   const result = await testMySQLConnection(force);
+  
+  if (force && result.connected) {
+    try {
+      // Instantly load the state from PostgreSQL if the connection test succeeded
+      await SaintFrancisDB.loadFromDB(true);
+      console.log('✅ Reloaded database state from PostgreSQL after a successful manual/forced connection test!');
+    } catch (loadErr: any) {
+      console.error('❌ Failed to reload database state after successful connection:', loadErr.message);
+    }
+  }
+
   const config = getMySQLConfig();
   res.json({
     connected: result.connected,
@@ -5981,8 +6000,8 @@ async function startServer() {
   let distPath = path.join(process.cwd(), 'dist');
   const possiblePaths = [
     path.join(process.cwd(), 'dist'),
-    path.join(__dirname, 'dist'),
-    __dirname,
+    path.join(_dirname, 'dist'),
+    _dirname,
     path.join(process.cwd(), 'public_html', 'dist'),
     path.join(process.cwd())
   ];
@@ -5993,7 +6012,8 @@ async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     try {
       console.log("[Static Server] Initializing Vite development server middleware...");
-      const vite = await createViteServer({
+      const { createServer } = await import('vite');
+      const vite = await createServer({
         server: { middlewareMode: true },
         appType: "spa",
       });
@@ -6061,7 +6081,7 @@ async function startServer() {
     try { cwdFiles = fs.readdirSync(process.cwd()); } catch(e: any) { cwdFiles = ['Error: ' + e.message]; }
     
     let dirnameFiles: string[] = [];
-    try { dirnameFiles = fs.readdirSync(__dirname); } catch(e: any) { dirnameFiles = ['Error: ' + e.message]; }
+    try { dirnameFiles = fs.readdirSync(_dirname); } catch(e: any) { dirnameFiles = ['Error: ' + e.message]; }
     
     const diagnostics = possiblePaths.map(p => {
       const exists = fs.existsSync(p);
@@ -6106,7 +6126,7 @@ async function startServer() {
             
             <div>
               <strong>Target Selected CWD:</strong> <code>${process.cwd()}</code><br/>
-              <strong>Target Selected __dirname:</strong> <code>${__dirname}</code><br/>
+              <strong>Target Selected __dirname:</strong> <code>${_dirname}</code><br/>
               <strong>Target Selected distPath:</strong> <code>${distPath}</code><br/>
               <strong>Target index.html Expected At:</strong> <code>${targetIndexHtml}</code> (Exists: <span class="${fs.existsSync(targetIndexHtml) ? 'success' : 'danger'}">${fs.existsSync(targetIndexHtml)}</span>)<br/>
               <strong>foundStaticDist flag:</strong> <code>${foundStaticDist}</code>

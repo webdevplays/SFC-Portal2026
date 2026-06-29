@@ -19,14 +19,35 @@ export const getPostgresConfig = () => {
   // If your Dokploy container environment variables fail to load correctly from the
   // Environment Setup, fill in your actual PostgreSQL database credentials here.
   // -----------------------------------------------------------------------------
-  const DOKPLOY_FALLBACK_HOST = 'localhost';
-  const DOKPLOY_FALLBACK_USER = 'postgres';
-  const DOKPLOY_FALLBACK_PASSWORD = '';
-  const DOKPLOY_FALLBACK_DB = 'sfclinic';
+  const DOKPLOY_FALLBACK_HOST = 'sfc-portal-sfcpostdb-snp1ir';
+  const DOKPLOY_FALLBACK_USER = 'sfcuser';
+  const DOKPLOY_FALLBACK_PASSWORD = 'Saintfrancisclinic2026.';
+  const DOKPLOY_FALLBACK_DB = 'sfcdb';
   const DOKPLOY_FALLBACK_PORT = '5432';
 
+  // Helper to sanitize quotes and spaces from environment variables
+  const sanitizeEnv = (val: string | undefined): string => {
+    if (!val) return '';
+    let s = val.trim();
+    if (s.startsWith('"') && s.endsWith('"')) {
+      s = s.substring(1, s.length - 1).trim();
+    }
+    if (s.startsWith("'") && s.endsWith("'")) {
+      s = s.substring(1, s.length - 1).trim();
+    }
+    return s;
+  };
+
   // Dokploy often injects DATABASE_URL, POSTGRES_URL, or POSTGRES_PRIVATE_URL
-  const connectionUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRIVATE_URL || '';
+  const connectionUrl = sanitizeEnv(
+    process.env.DATABASE_URL || 
+    process.env.POSTGRES_URL || 
+    process.env.POSTGRES_PRIVATE_URL || 
+    process.env.DB_URL || 
+    process.env.POSTGRES_CONNECTION_URL || 
+    process.env.POSTGRESQL_URL || 
+    process.env.DB_CONNECTION_URL
+  );
   
   let parsedUrlConfig: {
     host?: string;
@@ -53,62 +74,85 @@ export const getPostgresConfig = () => {
     }
   }
 
-  const host = parsedUrlConfig.host || 
-               process.env.DB_HOST || 
-               process.env.POSTGRES_HOST || 
-               process.env.POSTGRES_PRIVATE_HOST || 
-               DOKPLOY_FALLBACK_HOST;
-               
-  const user = parsedUrlConfig.user || 
-               process.env.DB_USER || 
-               process.env.POSTGRES_USER || 
-               DOKPLOY_FALLBACK_USER;
-               
-  const password = parsedUrlConfig.password !== undefined ? parsedUrlConfig.password : (
-                   process.env.DB_PASSWORD || 
-                   process.env.POSTGRES_PASSWORD || 
-                   DOKPLOY_FALLBACK_PASSWORD
-                 );
-                  
-  const database = parsedUrlConfig.database || 
-                   process.env.DB_NAME || 
-                   process.env.DB_DATABASE || 
-                   process.env.POSTGRES_DB || 
-                   DOKPLOY_FALLBACK_DB;
-                    
-  const rawPort = parsedUrlConfig.port ? String(parsedUrlConfig.port) : (
-                  process.env.DB_PORT || 
-                  process.env.POSTGRES_PORT || 
-                  DOKPLOY_FALLBACK_PORT
-                );
+  const envHost = sanitizeEnv(process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_PRIVATE_HOST);
+  const envUser = sanitizeEnv(process.env.DB_USER || process.env.POSTGRES_USER);
+  const envPassword = sanitizeEnv(process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD);
+  const envDatabase = sanitizeEnv(process.env.DB_NAME || process.env.DB_DATABASE || process.env.POSTGRES_DB);
+  const envPort = sanitizeEnv(process.env.DB_PORT || process.env.POSTGRES_PORT);
 
-  return {
+  const host = parsedUrlConfig.host || envHost || DOKPLOY_FALLBACK_HOST;
+  const user = parsedUrlConfig.user || envUser || DOKPLOY_FALLBACK_USER;
+  const password = parsedUrlConfig.password !== undefined ? parsedUrlConfig.password : (envPassword || DOKPLOY_FALLBACK_PASSWORD);
+  const database = parsedUrlConfig.database || envDatabase || DOKPLOY_FALLBACK_DB;
+  const rawPort = parsedUrlConfig.port ? String(parsedUrlConfig.port) : (envPort || DOKPLOY_FALLBACK_PORT);
+
+  // Dynamically determine SSL configuration
+  let ssl: any = undefined;
+  const isSSLEnabled = sanitizeEnv(process.env.DB_SSL) === 'true' || 
+                       sanitizeEnv(process.env.POSTGRES_SSL) === 'true' ||
+                       (connectionUrl && (connectionUrl.includes('sslmode=require') || connectionUrl.includes('ssl=true') || connectionUrl.includes('sslmode=prefer')));
+
+  if (isSSLEnabled) {
+    ssl = { rejectUnauthorized: false };
+  } else if (host && host !== 'localhost' && host !== '127.0.0.1' && host.includes('.') && !host.startsWith('192.168.') && !host.startsWith('10.') && !host.startsWith('172.')) {
+    // Remote internet databases (e.g., Supabase, Neon, or public Dokploy PostgreSQL) usually require SSL
+    ssl = { rejectUnauthorized: false };
+  }
+
+  const config: any = {
     host,
     user,
     password,
     database,
     port: parseInt(rawPort, 10),
+    ssl,
     max: 10, // maximum pool size
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000 // 5 seconds connect timeout to fail-fast
+    connectionTimeoutMillis: 5000, // 5 seconds connect timeout to fail-fast
   };
+
+  // Always pass connectionString if a URL exists to ensure complete protocol and parameter compatibility
+  if (connectionUrl) {
+    config.connectionString = connectionUrl;
+  }
+
+  return config;
 };
+
+function isPrivateHost(host: string): boolean {
+  if (!host) return true;
+  const h = host.toLowerCase().trim();
+  if (h === 'localhost' || h === '127.0.0.1' || h === '::1') return true;
+  // If it's an IP address, check for RFC 1918 private networks
+  if (/^(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/.test(h)) {
+    return true;
+  }
+  // If the host does not contain a dot (e.g. "sfc-portal-sfcpostdb-snp1ir"), it is an internal/local Docker service name
+  if (!h.includes('.')) {
+    return true;
+  }
+  if (h.endsWith('.local') || h.endsWith('.internal')) {
+    return true;
+  }
+  return false;
+}
 
 export function shouldAttemptPostgres(): boolean {
   const config = getPostgresConfig();
-  if (!config.database || !config.host) {
+  if (!config.connectionString && (!config.database || !config.host)) {
     return false;
   }
 
-  // Disable localhost database connections inside the AI Studio development container
+  // Disable localhost and internal Docker host database connections inside the AI Studio development container
   const isAISandbox = 
     process.env.K_SERVICE?.includes('ais-dev') || 
     process.env.K_SERVICE?.includes('ais-pre') || 
     process.env.AUTHORIZED_SERVICE_ACCOUNT_EMAIL?.includes('ais-sandbox') ||
     process.env.APP_URL?.includes('ais-dev') ||
-    process.env.APP_URL?.includes('ais-pre');
+    process.env.APP_URL?.includes('ais-pre') ||
+    process.env.DEFAULT_APP_PORT === '3000';
 
-  if (isAISandbox && (config.host === 'localhost' || config.host === '127.0.0.1')) {
+  if (isAISandbox && isPrivateHost(config.host)) {
     return false;
   }
 
@@ -350,7 +394,7 @@ const CACHE_TEST_MS = 15000;
 
 export async function testPostgresConnection(force: boolean = false): Promise<{ connected: boolean; message: string }> {
   const config = getPostgresConfig();
-  if (!config.database || !config.host) {
+  if (!config.connectionString && (!config.database || !config.host)) {
     return { 
       connected: false, 
       message: 'PostgreSQL environment credentials not configured in .env. Falling back to local/JSON persistence system.' 
@@ -390,9 +434,23 @@ export async function testPostgresConnection(force: boolean = false): Promise<{ 
   } catch (err: any) {
     console.log('ℹ️ PostgreSQL database connection is currently unavailable:', err.message);
     markPostgresFailure();
+
+    const isAISandbox = 
+      process.env.K_SERVICE?.includes('ais-dev') || 
+      process.env.K_SERVICE?.includes('ais-pre') || 
+      process.env.AUTHORIZED_SERVICE_ACCOUNT_EMAIL?.includes('ais-sandbox') ||
+      process.env.APP_URL?.includes('ais-dev') ||
+      process.env.APP_URL?.includes('ais-pre') ||
+      process.env.DEFAULT_APP_PORT === '3000';
+
+    let extraMsg = '';
+    if (isAISandbox && isPrivateHost(config.host)) {
+      extraMsg = ` (Note: '${config.host}' is an internal Dokploy Docker network host. Google AI Studio preview sandbox is isolated from your private server network, so this EAI_AGAIN error is fully expected here. Once this container is built and run inside your Dokploy server, it will resolve and connect flawlessly.)`;
+    }
+
     const errorResult = { 
       connected: false, 
-      message: `Database connection failed: ${err.message}` 
+      message: `Database connection failed: ${err.message}${extraMsg}` 
     };
     lastTestResult = errorResult;
     lastTestTime = now;
