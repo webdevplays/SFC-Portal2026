@@ -111,8 +111,8 @@ export const getPostgresConfig = () => {
     connectionTimeoutMillis: 5000, // 5 seconds connect timeout to fail-fast
   };
 
-  // Only pass connectionString as a fallback if we couldn't parse it successfully but a URL exists
-  if (connectionUrl && !parsedUrlConfig.host) {
+  // Always pass connectionString if a URL exists to ensure complete protocol and parameter compatibility
+  if (connectionUrl) {
     config.connectionString = connectionUrl;
   }
 
@@ -139,7 +139,7 @@ function isPrivateHost(host: string): boolean {
 
 export function shouldAttemptPostgres(): boolean {
   const config = getPostgresConfig();
-  if (!config.database || !config.host) {
+  if (!config.connectionString && (!config.database || !config.host)) {
     return false;
   }
 
@@ -394,7 +394,7 @@ const CACHE_TEST_MS = 15000;
 
 export async function testPostgresConnection(force: boolean = false): Promise<{ connected: boolean; message: string }> {
   const config = getPostgresConfig();
-  if (!config.database || !config.host) {
+  if (!config.connectionString && (!config.database || !config.host)) {
     return { 
       connected: false, 
       message: 'PostgreSQL environment credentials not configured in .env. Falling back to local/JSON persistence system.' 
