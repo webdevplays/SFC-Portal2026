@@ -1,3 +1,6 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 /**
  * cPanel Node.js Application Startup File
  * 

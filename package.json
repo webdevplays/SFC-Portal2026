@@ -1,6 +1,7 @@
 {
   "name": "react-example",
   "private": true,
+  "type": "module",
   "version": "0.0.0",
   "scripts": {
     "dev": "node scripts/prepare.cjs && tsx server.ts",

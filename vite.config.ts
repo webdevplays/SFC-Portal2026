@@ -1,9 +1,10 @@
-import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
 
 export default defineConfig(async () => {
+  const react = (await import('@vitejs/plugin-react')).default;
   const tailwindcss = (await import('@tailwindcss/vite')).default;
+
   return {
     define: {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
@@ -12,7 +13,7 @@ export default defineConfig(async () => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': fileURLToPath(new URL('.', import.meta.url)),
       },
     },
     server: {
