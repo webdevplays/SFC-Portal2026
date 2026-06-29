@@ -1129,7 +1129,13 @@ export class SaintFrancisDB {
 
       // Write parsed backup instantly to our active JSON db.json file
       ensureDataFolder();
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.state, null, 2), 'utf8');
+      const serializedData = JSON.stringify(this.state, null, 2);
+      fs.writeFileSync(DB_FILE, serializedData, 'utf8');
+      try {
+        fs.writeFileSync(path.join(process.cwd(), 'saint-francis-db-persistent.json'), serializedData, 'utf8');
+      } catch (pe) {
+        console.warn('Persistent JSON write failed in importFromJsonFile:', pe);
+      }
 
       // Sync directly to MySQL database if live active
       const hasMySQL = shouldAttemptMySQL();
@@ -1595,7 +1601,13 @@ export class SaintFrancisDB {
 
       this.state = stateToImport;
       ensureDataFolder();
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.state, null, 2), 'utf8');
+      const sqlSerialized = JSON.stringify(this.state, null, 2);
+      fs.writeFileSync(DB_FILE, sqlSerialized, 'utf8');
+      try {
+        fs.writeFileSync(path.join(process.cwd(), 'saint-francis-db-persistent.json'), sqlSerialized, 'utf8');
+      } catch (pe) {
+        console.warn('Persistent JSON write failed in importFromSqlContent:', pe);
+      }
 
       if (hasMySQL && !mySQLConnected) {
         const pool = getMySQLPool();
@@ -1661,6 +1673,41 @@ export class SaintFrancisDB {
         }
       } catch (err: any) {
         console.error('Error loading redundant backup DB file:', err.message);
+      }
+    }
+
+    // 2.5 Try to load from our workspace persistent JSON backups (to survive container scale-downs and reboots)
+    if (!loadedCorrectly) {
+      const persistentPaths = [
+        path.join(process.cwd(), 'saint-francis-db-persistent.json'),
+        path.join(process.cwd(), 'saint-francis-db_imported.json'),
+        path.join(process.cwd(), 'saint-francis-db.json.backup_imported.json'),
+        path.join(process.cwd(), 'sainajbo_saintfrancisclinic_imported.json'),
+        path.join(process.cwd(), 'sainajbo_saintfrancisclinic_imported_processed.json')
+      ];
+
+      for (const pPath of persistentPaths) {
+        if (fs.existsSync(pPath)) {
+          try {
+            const data = fs.readFileSync(pPath, 'utf8');
+            if (data && data.trim().length > 0) {
+              const parsed = safeJsonParse(data);
+              // Verify that the parsed data is a valid database state and has users/households
+              const hhCount = parsed && Array.isArray(parsed.households) ? parsed.households.length : 0;
+              const uCount = parsed && Array.isArray(parsed.users) ? parsed.users.length : 0;
+              if (hhCount > 0 || uCount > 0) {
+                this.state = parsed;
+                loadedCorrectly = true;
+                console.log(`🛡️ Persistent auto-recovery activated: Restored state from workspace backup ${path.basename(pPath)} successfully (${hhCount} households, ${uCount} users).`);
+                // Write this back to DB_FILE so standard procedures continue smoothly
+                fs.writeFileSync(DB_FILE, JSON.stringify(this.state, null, 2), 'utf8');
+                break;
+              }
+            }
+          } catch (err: any) {
+            console.error(`Error loading persistent file ${path.basename(pPath)}:`, err.message);
+          }
+        }
       }
     }
 
@@ -2805,6 +2852,21 @@ export class SaintFrancisDB {
           };
           this.hasLoadedFromMySQLSuccessfully = true;
           this.populateAllSignatures();
+
+          // Write this successfully loaded database state to standard files AND persistent backup
+          try {
+            ensureDataFolder();
+            const serialized = JSON.stringify(this.state, null, 2);
+            fs.writeFileSync(DB_FILE, serialized, 'utf8');
+            try {
+              fs.writeFileSync(DB_BACKUP_FILE, serialized, 'utf8');
+            } catch (be) {}
+            try {
+              fs.writeFileSync(path.join(process.cwd(), 'saint-francis-db-persistent.json'), serialized, 'utf8');
+            } catch (pe) {}
+          } catch (err: any) {
+            console.warn('[Database Fallback Sync] Failed caching loaded PostgreSQL state to local disk:', err.message);
+          }
         }
         markMySQLSuccess();
       } finally {
@@ -2845,11 +2907,18 @@ export class SaintFrancisDB {
         console.warn('Redundant DB backup file write rejected:', backupErr.message);
       }
 
+      // Also write to saint-francis-db-persistent.json in workspace root to survive container scale-downs/restarts
+      try {
+        fs.writeFileSync(path.join(process.cwd(), 'saint-francis-db-persistent.json'), serialized, 'utf8');
+      } catch (persistentErr: any) {
+        console.warn('Persistent DB backup file write rejected:', persistentErr.message);
+      }
+
       this.lastLocalLoadTime = Date.now();
       if (!hasMySQL) {
         this.lastLoadTime = Date.now();
       }
-      console.log('💾 Automatic JSON backup and redundant safe-copy saved successfully to local file system.');
+      console.log('💾 Automatic JSON backup and redundant safe-copy saved successfully to local file system and persistent workspace.');
     } catch (err: any) {
       console.warn('Local file write fallback/backup rejected:', err.message);
     }

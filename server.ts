@@ -1640,7 +1640,7 @@ app.post('/api/puroks/delete', checkUser, (req: any, res) => {
 app.get('/api/approvals/list', async (req, res) => {
   if (shouldAttemptMySQL()) {
     try {
-      await SaintFrancisDB.loadFromDB();
+      await SaintFrancisDB.loadFromDB(true);
     } catch (e) {
       console.error('[LAZY LOAD ERROR] /api/approvals/list loadFromDB failure:', e);
     }
@@ -2091,7 +2091,7 @@ app.get('/api/households', checkUser, async (req: any, res) => {
   try {
     if (shouldAttemptMySQL()) {
       try {
-        await SaintFrancisDB.loadFromDB();
+        await SaintFrancisDB.loadFromDB(true);
       } catch (e) {
         console.error('[LAZY LOAD ERROR] /api/households loadFromDB failure:', e);
       }
@@ -3412,7 +3412,67 @@ app.post('/api/health-records/add', checkUser, (req: any, res) => {
 // -------------------------------------------------------------
 app.get('/api/pcu-files', checkUser, (req: any, res) => {
   const db = SaintFrancisDB.getData();
-  res.json(db.pcuFiles || []);
+  const files = (db.pcuFiles || []).map((f: any) => ({
+    ...f,
+    fileData: `/api/pcu-files/${f.id}/raw`
+  }));
+  res.json(files);
+});
+
+app.get('/api/pcu-files/:id/raw', checkUser, async (req: any, res) => {
+  const { id } = req.params;
+  
+  if (shouldAttemptMySQL()) {
+    try {
+      const pool = getMySQLPool();
+      if (pool) {
+        const [rows] = await pool.query('SELECT fileData, fileName FROM pcu_files WHERE id = ?', [id]);
+        if (rows && rows.length > 0) {
+          const file = rows[0];
+          const dataStr = file.fileData || '';
+          
+          if (dataStr.startsWith('data:')) {
+            const matches = dataStr.match(/^data:([^;]+);base64,(.+)$/);
+            if (matches) {
+              const contentType = matches[1];
+              const base64Data = matches[2];
+              const buffer = Buffer.from(base64Data, 'base64');
+              res.setHeader('Content-Type', contentType);
+              res.setHeader('Content-Disposition', `inline; filename="${file.fileName}"`);
+              return res.send(buffer);
+            }
+          }
+          
+          res.setHeader('Content-Type', 'application/octet-stream');
+          return res.send(dataStr);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error fetching raw PCU file from database:', err.message);
+    }
+  }
+
+  const db = SaintFrancisDB.getData();
+  const file = (db.pcuFiles || []).find((f: any) => f.id === id);
+  if (!file) {
+    return res.status(404).json({ error: 'File not found.' });
+  }
+
+  const dataStr = file.fileData || '';
+  if (dataStr.startsWith('data:')) {
+    const matches = dataStr.match(/^data:([^;]+);base64,(.+)$/);
+    if (matches) {
+      const contentType = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${file.fileName}"`);
+      return res.send(buffer);
+    }
+  }
+
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.send(dataStr);
 });
 
 app.post('/api/pcu-files/upload', checkUser, (req: any, res) => {
@@ -3454,7 +3514,13 @@ app.post('/api/pcu-files/upload', checkUser, (req: any, res) => {
   SaintFrancisDB.save();
   SaintFrancisDB.log(req.currentUser.fullName, `Uploaded ${addedFiles.length} PCU file(s) under Households`, 'Households');
 
-  res.json({ success: true, files: addedFiles });
+  // Map the uploaded files so that the client receives the lightweight url as fileData
+  const clientResponseFiles = addedFiles.map(f => ({
+    ...f,
+    fileData: `/api/pcu-files/${f.id}/raw`
+  }));
+
+  res.json({ success: true, files: clientResponseFiles });
 });
 
 
@@ -4808,13 +4874,74 @@ app.get('/api/timecards', checkUser, (req: any, res) => {
   // Pre-process any dynamic 5pm timeouts
   runAutoTimeoutCheck(db);
 
+  const mapTimecards = (list: any[]) => {
+    return list.map(tc => ({
+      ...tc,
+      photo: tc.photo ? `/api/timecards/${tc.id}/photo` : null
+    }));
+  };
+
   // Admins, HR and Managers see all timesheets, other roles see their own
   if (hasRole(user, ['ADMIN', 'HR', 'MANAGER'])) {
-    res.json(db.timecards || []);
+    res.json(mapTimecards(db.timecards || []));
   } else {
     const filtered = (db.timecards || []).filter(tc => tc.userId === user.id || tc.userEmail === user.email);
-    res.json(filtered);
+    res.json(mapTimecards(filtered));
   }
+});
+
+app.get('/api/timecards/:id/photo', checkUser, async (req: any, res) => {
+  const { id } = req.params;
+
+  if (shouldAttemptMySQL()) {
+    try {
+      const pool = getMySQLPool();
+      if (pool) {
+        const [rows] = await pool.query('SELECT photo FROM timecards WHERE id = ?', [id]);
+        if (rows && rows.length > 0) {
+          const tc = rows[0];
+          const dataStr = tc.photo || '';
+          
+          if (dataStr.startsWith('data:')) {
+            const matches = dataStr.match(/^data:([^;]+);base64,(.+)$/);
+            if (matches) {
+              const contentType = matches[1];
+              const base64Data = matches[2];
+              const buffer = Buffer.from(base64Data, 'base64');
+              res.setHeader('Content-Type', contentType);
+              return res.send(buffer);
+            }
+          }
+          
+          res.setHeader('Content-Type', 'image/jpeg');
+          return res.send(dataStr);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error fetching raw timecard photo from database:', err.message);
+    }
+  }
+
+  const db = SaintFrancisDB.getData();
+  const tc = (db.timecards || []).find((t: any) => t.id === id);
+  if (!tc || !tc.photo) {
+    return res.status(404).json({ error: 'Photo not found.' });
+  }
+
+  const dataStr = tc.photo;
+  if (dataStr.startsWith('data:')) {
+    const matches = dataStr.match(/^data:([^;]+);base64,(.+)$/);
+    if (matches) {
+      const contentType = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      res.setHeader('Content-Type', contentType);
+      return res.send(buffer);
+    }
+  }
+
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.send(dataStr);
 });
 
 app.post('/api/timecards/clear', checkUser, (req: any, res) => {
