@@ -6059,6 +6059,22 @@ async function startServer() {
     }
   }
 
+  // API global error handler - guarantees that any error on any API endpoint returns JSON instead of an HTML page!
+  app.use('/api', (err: any, req: any, res: any, next: any) => {
+    console.error('💥 [API Global Error Handler]:', err.stack || err.message || err);
+    res.status(err.status || 500).json({
+      connected: false,
+      error: true,
+      message: `Internal Server Error: ${err.message || 'An unexpected error occurred on the application server.'}`,
+      config: {
+        host: 'Error occurred',
+        user: 'Error occurred',
+        database: 'Error occurred',
+        port: 5432
+      }
+    });
+  });
+
   // Catch-all route for frontend static routing
   app.get('*', (req: any, res: any, next: any) => {
     // If Vite middleware is active, let it handle SPA routing first (takes precedence in development mode)

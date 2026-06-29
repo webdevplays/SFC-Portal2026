@@ -813,11 +813,46 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
     try {
       const res = await fetch('/api/mysql-status');
       if (res.ok) {
-        const data = await res.json();
-        setMysqlStatus(data);
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          setMysqlStatus(data);
+        } else {
+          setMysqlStatus({
+            connected: false,
+            message: 'The server returned an HTML page instead of JSON. The application server might be in compilation, database is offline, or the route configuration is pending.',
+            config: {
+              host: 'Not Set',
+              user: 'Not Set',
+              database: 'Not Set',
+              port: 5432
+            }
+          });
+        }
+      } else {
+        setMysqlStatus({
+          connected: false,
+          message: `Status check returned response code ${res.status}`,
+          config: {
+            host: 'Not Set',
+            user: 'Not Set',
+            database: 'Not Set',
+            port: 5432
+          }
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setMysqlStatus({
+        connected: false,
+        message: err.message || 'Error executing heartbeat request to DB.',
+        config: {
+          host: 'Not Set',
+          user: 'Not Set',
+          database: 'Not Set',
+          port: 5432
+        }
+      });
     } finally {
       setMysqlLoading(false);
     }
@@ -1341,6 +1376,11 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                         {mysqlStatus.connected ? 'PostgreSQL Host Connected!' : 'Local / JSON DB Fallback'}
                       </strong>
                       <p className="opacity-90 leading-relaxed text-[10px]">{mysqlStatus.message}</p>
+                      {mysqlStatus.message && mysqlStatus.message.includes('HTML page') && (
+                        <div className="mt-2 bg-amber-50/70 border border-amber-200/60 rounded-lg p-2.5 text-[9px] text-amber-850 leading-normal font-sans">
+                          💡 <strong>Dokploy Action:</strong> If the server returned an HTML page instead of JSON, the Node application bundle is still compiling or has not started yet. Go to your <strong>Dokploy Dashboard</strong> and click <strong>Redeploy</strong> (not just Restart) on the application to force Nixpacks to build and start the new bundle.
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -561,6 +561,11 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                     <p className="mt-0.5 text-slate-600 bg-white p-1.5 border border-slate-200/60 rounded-lg font-mono text-[9px]">
                       {dbConfigMessage || 'Pending test connection request.'}
                     </p>
+                    {dbConfigMessage && dbConfigMessage.includes('HTML page') && (
+                      <div className="mt-2 bg-amber-50/70 border border-amber-200/60 rounded-lg p-2 text-[9px] text-amber-800 leading-normal font-sans">
+                        💡 <strong>Dokploy Deployment Action:</strong> If the server returned an HTML page instead of JSON, the Node application bundle is still compiling or has not started yet. Go to your <strong>Dokploy Dashboard</strong> and click <strong>Redeploy</strong> (not just Restart) on the application to force Nixpacks to build and start the new bundle.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

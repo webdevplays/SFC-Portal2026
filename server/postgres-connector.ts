@@ -38,16 +38,31 @@ export const getPostgresConfig = () => {
     return s;
   };
 
+  // Highly robust helper to find environment variables, ignoring leading/trailing spaces in keys and values
+  const getEnvRobust = (possibleKeys: string[]): string => {
+    const uppercaseKeys = possibleKeys.map(k => k.trim().toUpperCase());
+    for (const rawKey of Object.keys(process.env)) {
+      const trimmedKey = rawKey.trim().toUpperCase();
+      if (uppercaseKeys.includes(trimmedKey)) {
+        const val = process.env[rawKey];
+        const sanitized = sanitizeEnv(val);
+        console.log(`🔌 [Robust Env Parser] Matched key "${rawKey}" (length: ${sanitized.length})`);
+        return sanitized;
+      }
+    }
+    return '';
+  };
+
   // Dokploy often injects DATABASE_URL, POSTGRES_URL, or POSTGRES_PRIVATE_URL
-  const connectionUrl = sanitizeEnv(
-    process.env.DATABASE_URL || 
-    process.env.POSTGRES_URL || 
-    process.env.POSTGRES_PRIVATE_URL || 
-    process.env.DB_URL || 
-    process.env.POSTGRES_CONNECTION_URL || 
-    process.env.POSTGRESQL_URL || 
-    process.env.DB_CONNECTION_URL
-  );
+  const connectionUrl = getEnvRobust([
+    'DATABASE_URL',
+    'POSTGRES_URL',
+    'POSTGRES_PRIVATE_URL',
+    'DB_URL',
+    'POSTGRES_CONNECTION_URL',
+    'POSTGRESQL_URL',
+    'DB_CONNECTION_URL'
+  ]);
   
   let parsedUrlConfig: {
     host?: string;
@@ -74,11 +89,11 @@ export const getPostgresConfig = () => {
     }
   }
 
-  const envHost = sanitizeEnv(process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_PRIVATE_HOST);
-  const envUser = sanitizeEnv(process.env.DB_USER || process.env.POSTGRES_USER);
-  const envPassword = sanitizeEnv(process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD);
-  const envDatabase = sanitizeEnv(process.env.DB_NAME || process.env.DB_DATABASE || process.env.POSTGRES_DB);
-  const envPort = sanitizeEnv(process.env.DB_PORT || process.env.POSTGRES_PORT);
+  const envHost = getEnvRobust(['DB_HOST', 'POSTGRES_HOST', 'POSTGRES_PRIVATE_HOST']);
+  const envUser = getEnvRobust(['DB_USER', 'POSTGRES_USER']);
+  const envPassword = getEnvRobust(['DB_PASSWORD', 'POSTGRES_PASSWORD']);
+  const envDatabase = getEnvRobust(['DB_NAME', 'DB_DATABASE', 'POSTGRES_DB']);
+  const envPort = getEnvRobust(['DB_PORT', 'POSTGRES_PORT']);
 
   const host = parsedUrlConfig.host || envHost || DOKPLOY_FALLBACK_HOST;
   const user = parsedUrlConfig.user || envUser || DOKPLOY_FALLBACK_USER;
