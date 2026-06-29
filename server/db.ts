@@ -2764,7 +2764,7 @@ export class SaintFrancisDB {
             }));
 
             // M. Timecards
-            const [timecardRows] = await connection.query('SELECT * FROM timecards');
+            const [timecardRows] = await connection.query('SELECT id, userId, userEmail, userName, type, timestamp, latitude, longitude, deviceInfo, settled, settlementId, isOvertime, otHours FROM timecards');
             const timecards = (timecardRows as any[]).map((t: any) => ({
               id: t.id,
               userId: t.userId,
@@ -2772,7 +2772,7 @@ export class SaintFrancisDB {
               userName: t.userName,
               type: t.type,
               timestamp: t.timestamp,
-              photo: t.photo,
+              photo: '[stored_in_db]',
               latitude: t.latitude !== null && t.latitude !== undefined ? parseFloat(t.latitude.toString()) : undefined,
               longitude: t.longitude !== null && t.longitude !== undefined ? parseFloat(t.longitude.toString()) : undefined,
               deviceInfo: t.deviceInfo || undefined,
@@ -2816,13 +2816,13 @@ export class SaintFrancisDB {
             // O. PCU Files
             let pcuFiles: any[] = [];
             try {
-              const [pcuRows] = await connection.query('SELECT * FROM pcu_files');
+              const [pcuRows] = await connection.query('SELECT id, fullName, birthday, fileName, uploadDate, uploadedBy FROM pcu_files');
               pcuFiles = (pcuRows as any[]).map((pcu: any) => ({
                 id: pcu.id,
                 fullName: pcu.fullName,
                 birthday: pcu.birthday,
                 fileName: pcu.fileName,
-                fileData: pcu.fileData,
+                fileData: '[stored_in_db]',
                 uploadDate: pcu.uploadDate,
                 uploadedBy: pcu.uploadedBy
               }));
@@ -3329,19 +3329,35 @@ export class SaintFrancisDB {
 
       // 13. Timecards sync
       await syncTable('timecards', 'timecards', async (tc) => {
-        await connection.query(
-          `INSERT INTO timecards (id, userId, userEmail, userName, type, timestamp, photo, latitude, longitude, deviceInfo, settled, settlementId, isOvertime, otHours)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE userId=VALUES(userId), userEmail=VALUES(userEmail), userName=VALUES(userName), 
-             type=VALUES(type), timestamp=VALUES(timestamp), photo=VALUES(photo), latitude=VALUES(latitude), 
-             longitude=VALUES(longitude), deviceInfo=VALUES(deviceInfo), settled=VALUES(settled), settlementId=VALUES(settlementId),
-             isOvertime=VALUES(isOvertime), otHours=VALUES(otHours)`,
-          [
-            tc.id, tc.userId, tc.userEmail, tc.userName, tc.type, tc.timestamp, tc.photo, 
-            tc.latitude !== undefined && tc.latitude !== null ? tc.latitude : null, tc.longitude !== undefined && tc.longitude !== null ? tc.longitude : null, 
-            tc.deviceInfo || null, tc.settled ? 1 : 0, tc.settlementId || null, tc.isOvertime ? 1 : 0, tc.otHours !== undefined && tc.otHours !== null ? tc.otHours : null
-          ]
-        );
+        if (tc.photo === '[stored_in_db]' || !tc.photo) {
+          await connection.query(
+            `INSERT INTO timecards (id, userId, userEmail, userName, type, timestamp, latitude, longitude, deviceInfo, settled, settlementId, isOvertime, otHours)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE userId=VALUES(userId), userEmail=VALUES(userEmail), userName=VALUES(userName), 
+               type=VALUES(type), timestamp=VALUES(timestamp), latitude=VALUES(latitude), 
+               longitude=VALUES(longitude), deviceInfo=VALUES(deviceInfo), settled=VALUES(settled), settlementId=VALUES(settlementId),
+               isOvertime=VALUES(isOvertime), otHours=VALUES(otHours)`,
+            [
+              tc.id, tc.userId, tc.userEmail, tc.userName, tc.type, tc.timestamp, 
+              tc.latitude !== undefined && tc.latitude !== null ? tc.latitude : null, tc.longitude !== undefined && tc.longitude !== null ? tc.longitude : null, 
+              tc.deviceInfo || null, tc.settled ? 1 : 0, tc.settlementId || null, tc.isOvertime ? 1 : 0, tc.otHours !== undefined && tc.otHours !== null ? tc.otHours : null
+            ]
+          );
+        } else {
+          await connection.query(
+            `INSERT INTO timecards (id, userId, userEmail, userName, type, timestamp, photo, latitude, longitude, deviceInfo, settled, settlementId, isOvertime, otHours)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE userId=VALUES(userId), userEmail=VALUES(userEmail), userName=VALUES(userName), 
+               type=VALUES(type), timestamp=VALUES(timestamp), photo=VALUES(photo), latitude=VALUES(latitude), 
+               longitude=VALUES(longitude), deviceInfo=VALUES(deviceInfo), settled=VALUES(settled), settlementId=VALUES(settlementId),
+               isOvertime=VALUES(isOvertime), otHours=VALUES(otHours)`,
+            [
+              tc.id, tc.userId, tc.userEmail, tc.userName, tc.type, tc.timestamp, tc.photo, 
+              tc.latitude !== undefined && tc.latitude !== null ? tc.latitude : null, tc.longitude !== undefined && tc.longitude !== null ? tc.longitude : null, 
+              tc.deviceInfo || null, tc.settled ? 1 : 0, tc.settlementId || null, tc.isOvertime ? 1 : 0, tc.otHours !== undefined && tc.otHours !== null ? tc.otHours : null
+            ]
+          );
+        }
       });
 
       // 14. IT Settled Payrolls sync
@@ -3362,16 +3378,29 @@ export class SaintFrancisDB {
 
       // 15. PCU Files sync
       await syncTable('pcuFiles', 'pcu_files', async (pcu) => {
-        await connection.query(
-          `INSERT INTO pcu_files (id, fullName, birthday, fileName, fileData, uploadDate, uploadedBy)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE 
-             fullName=VALUES(fullName), birthday=VALUES(birthday), fileName=VALUES(fileName),
-             fileData=VALUES(fileData), uploadDate=VALUES(uploadDate), uploadedBy=VALUES(uploadedBy)`,
-          [
-            pcu.id, pcu.fullName, pcu.birthday, pcu.fileName, pcu.fileData, pcu.uploadDate, pcu.uploadedBy
-          ]
-        );
+        if (pcu.fileData === '[stored_in_db]' || !pcu.fileData) {
+          await connection.query(
+            `INSERT INTO pcu_files (id, fullName, birthday, fileName, uploadDate, uploadedBy)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE 
+               fullName=VALUES(fullName), birthday=VALUES(birthday), fileName=VALUES(fileName),
+               uploadDate=VALUES(uploadDate), uploadedBy=VALUES(uploadedBy)`,
+            [
+              pcu.id, pcu.fullName, pcu.birthday, pcu.fileName, pcu.uploadDate, pcu.uploadedBy
+            ]
+          );
+        } else {
+          await connection.query(
+            `INSERT INTO pcu_files (id, fullName, birthday, fileName, fileData, uploadDate, uploadedBy)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE 
+               fullName=VALUES(fullName), birthday=VALUES(birthday), fileName=VALUES(fileName),
+               fileData=VALUES(fileData), uploadDate=VALUES(uploadDate), uploadedBy=VALUES(uploadedBy)`,
+            [
+              pcu.id, pcu.fullName, pcu.birthday, pcu.fileName, pcu.fileData, pcu.uploadDate, pcu.uploadedBy
+            ]
+          );
+        }
       });
 
       await connection.query('SET FOREIGN_KEY_CHECKS = 1');

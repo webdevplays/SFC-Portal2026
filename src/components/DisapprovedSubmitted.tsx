@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { User, Household } from '../types';
+import { compressImage } from '../utils/imageCompressor';
 import { 
   ShieldAlert, Edit3, CheckCircle2, MessageSquare, AlertTriangle, 
   RefreshCw, MapPin, Phone, User as UserIcon, Calendar, Check, X, ClipboardList, AlertCircle, Paperclip, FileText
@@ -904,9 +905,10 @@ export default function DisapprovedSubmitted({ currentUser }: DisapprovedProps) 
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       if (e.target.files && e.target.files[0]) {
-                        setSelectedAttachmentFile(e.target.files[0]);
+                        const { compressedFile } = await compressImage(e.target.files[0]);
+                        setSelectedAttachmentFile(compressedFile);
                       }
                     }}
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"

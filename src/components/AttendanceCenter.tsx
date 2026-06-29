@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { User as UserType, Timecard, hasRole } from '../types';
+import { compressImage } from '../utils/imageCompressor';
 
 interface AttendanceCenterProps {
   currentUser: UserType;
@@ -303,22 +304,22 @@ export default function AttendanceCenter({ currentUser, isOpen, onClose }: Atten
   };
 
   // Manual File Select Snapshot / Fallback Support
-  const handleManualPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleManualPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        const dataUrl = event.target.result as string;
-        setCapturedPhoto(dataUrl);
+    try {
+      const { base64 } = await compressImage(file);
+      if (base64) {
+        setCapturedPhoto(base64);
         stopCameraStream();
         
         // AUTOMATICALLY RECURSIVELY TRANSMIT ON UPLOAD
-        recordTimecardObj(dataUrl, attendanceType, notes);
+        recordTimecardObj(base64, attendanceType, notes);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error compressing uploaded photo:', err);
+    }
   };
 
   const handleClearPhoto = () => {

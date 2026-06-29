@@ -5,6 +5,7 @@ import {
   Filter, Award, Coins, Settings, ArrowLeft, ShieldAlert, Sparkles
 } from 'lucide-react';
 import { User as UserType, hasRole } from '../types';
+import { compressImage } from '../utils/imageCompressor';
 
 interface PCUFilesProps {
   currentUser: UserType;
@@ -111,27 +112,28 @@ export default function PCUFiles({ currentUser }: PCUFilesProps) {
   }, [currentUser]);
 
   // Handle files selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const filesArray = Array.from(e.target.files);
 
-    filesArray.forEach((file: any) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
+    for (const file of filesArray) {
+      try {
+        const { base64, compressedFile } = await compressImage(file as File);
         setUploadQueue(prev => [
           ...prev,
           {
-            file,
-            name: file.name,
+            file: compressedFile as File,
+            name: compressedFile.name,
             fullName: '',
             birthday: '',
             gender: 'Male',
-            base64Data: reader.result as string
+            base64Data: base64
           }
         ]);
-      };
-      reader.readAsDataURL(file as Blob);
-    });
+      } catch (err) {
+        console.error('Error compressing file:', err);
+      }
+    }
 
     e.target.value = '';
   };

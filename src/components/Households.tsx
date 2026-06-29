@@ -6,6 +6,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Heart, Stethoscope, Building, Scale
 } from 'lucide-react';
 import { Household, User, Barangay, Purok, hasRole } from '../types';
+import { compressImage } from '../utils/imageCompressor';
 import SignaturePad from './SignaturePad';
 import { PhilHealthLogo } from './PhilHealthLogo';
 
@@ -2184,9 +2185,10 @@ export default function Households({
     }, 120);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedAttachmentFile(e.target.files[0]);
+      const { compressedFile } = await compressImage(e.target.files[0]);
+      setSelectedAttachmentFile(compressedFile);
     }
   };
 
@@ -2200,12 +2202,13 @@ export default function Households({
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setSelectedAttachmentFile(e.dataTransfer.files[0]);
+      const { compressedFile } = await compressImage(e.dataTransfer.files[0]);
+      setSelectedAttachmentFile(compressedFile);
     }
   };
 
@@ -5295,10 +5298,11 @@ export default function Households({
                         id="drawer-file-upload-input-household"
                         accept="image/*,application/pdf"
                         className="hidden"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           setDrawerAttachmentType('Household File');
                           if (e.target.files && e.target.files[0]) {
-                            setSelectedDrawerAttachmentFile(e.target.files[0]);
+                            const { compressedFile } = await compressImage(e.target.files[0]);
+                            setSelectedDrawerAttachmentFile(compressedFile);
                           }
                         }}
                       />
@@ -10739,10 +10743,11 @@ export default function Households({
                         </label>
                         <input 
                           type="file" 
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             setAttachmentType('Household File');
                             if (e.target.files && e.target.files[0]) {
-                              setSelectedAttachmentFile(e.target.files[0]);
+                              const { compressedFile } = await compressImage(e.target.files[0]);
+                              setSelectedAttachmentFile(compressedFile);
                             }
                           }}
                           className="hidden" 
