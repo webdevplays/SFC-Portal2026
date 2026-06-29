@@ -1833,17 +1833,36 @@ export class SaintFrancisDB {
   private static async ensureMySQLSchema(connection: any): Promise<void> {
     if (this.schemaChecked) return;
     try {
-      const [rows] = await connection.query('SHOW TABLES');
-      const tablesCount = (rows as any[]).length;
-      if (tablesCount === 0) {
-        console.log('📦 Database is empty. Auto-initializing PostgreSQL database schema inside Dokploy...');
+      const [rows] = await connection.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE LOWER(table_name) IN ('users', 'barangays')
+      `);
+      const existingKeyTablesCount = (rows as any[]).length;
+      if (existingKeyTablesCount < 2) {
+        console.log('📦 Key tables (users/barangays) are missing. Auto-initializing database schema...');
         const schemaPath = path.join(process.cwd(), 'postgres-schema.sql');
         if (fs.existsSync(schemaPath)) {
           const rawSql = fs.readFileSync(schemaPath, 'utf8');
-          const queries = rawSql
+          // Strip block comments first
+          const cleanSql = rawSql.replace(/\/\*[\s\S]*?\*\//g, '');
+          // Split by newline and filter out single-line comments completely
+          const lines = cleanSql.split('\n');
+          const finalLines: string[] = [];
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('--')) {
+              continue;
+            }
+            finalLines.push(line);
+          }
+          const sqlWithoutComments = finalLines.join('\n');
+          
+          // Split by semicolon to get distinct SQL statements
+          const queries = sqlWithoutComments
             .split(';')
             .map(q => q.trim())
-            .filter(q => q.length > 0 && !q.startsWith('--'));
+            .filter(q => q.length > 0);
 
           try {
             await connection.query('SET FOREIGN_KEY_CHECKS = 0');
@@ -1876,7 +1895,11 @@ export class SaintFrancisDB {
           
           // 0. Ensure pmrf_dependents table exists (it might be missing in databases imported from legacy backups like sainajbo_sfc1-1.sql)
           try {
-            const [tableCheck] = await connection.query(`SHOW TABLES LIKE 'pmrf_dependents'`);
+            const [tableCheck] = await connection.query(`
+              SELECT table_name 
+              FROM information_schema.tables 
+              WHERE LOWER(table_name) = 'pmrf_dependents'
+            `);
             if (Array.isArray(tableCheck) && tableCheck.length === 0) {
               console.log('📦 Missing pmrf_dependents table detected. Auto-creating table structure with foreign key relation...');
               await connection.query(`
@@ -2303,588 +2326,589 @@ export class SaintFrancisDB {
     }
 
     const now = Date.now();
-    const ttl = 10000; // 10 seconds Cache TTL for standard DB-loading fetches
+    const ttl = 10000; // 10 seconds Cache TTL for background fetches
     const forceThrottle = 2500; // 2.5 seconds minimum throttle gap even for forced requests
 
-    if (this.hasLoadedFromMySQLSuccessfully) {
-      if (force) {
-        // Enforce a small gap even under force conditions to prevent rapid overlapping calls
-        if (now - this.lastLoadTime < forceThrottle) {
-          return state;
-        }
-      } else {
-        if (now - this.lastLoadTime < ttl) {
-          return state;
-        }
+    let shouldSync = false;
+    if (!this.hasLoadedFromMySQLSuccessfully) {
+      shouldSync = true;
+    } else if (force) {
+      if (now - this.lastLoadTime >= forceThrottle) {
+        shouldSync = true;
+      }
+    } else {
+      if (now - this.lastLoadTime >= ttl) {
+        shouldSync = true;
       }
     }
 
-    if (this.loadingPromise) {
-      return this.loadingPromise;
-    }
-
-    this.loadingPromise = (async () => {
-      try {
-        const connection = await pool.getConnection();
-      try {
-        // Auto-provision schema on boot if database is brand new
-        await this.ensureMySQLSchema(connection);
-
-        // Permanent SQL removal of SAN FRANCISCO / SAN FANCISCO
+    if (shouldSync && !this.loadingPromise) {
+      // Start background fetch from PostgreSQL
+      const bgPromise = (async () => {
         try {
-          // Delete San Francisco barangay record
-          await connection.query(`DELETE FROM barangays WHERE LOWER(name) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
-          // Delete Puroks belonging to San Francisco
-          await connection.query(`DELETE FROM puroks WHERE LOWER(barangay) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
-          // Delete Seed household
-          await connection.query(`DELETE FROM households WHERE id = 'hsh_1'`);
-          // Migrate any other households with San Francisco address
-          await connection.query(`UPDATE households SET barangay = 'SAN PEDRO', completeAddress = REPLACE(completeAddress, 'San Francisco', 'SAN PEDRO') WHERE LOWER(barangay) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
-          // Delete Seed health_records
-          await connection.query(`DELETE FROM health_records WHERE id IN ('med_1', 'med_2')`);
-          // Migrate other health records
-          await connection.query(`UPDATE health_records SET barangay = 'SAN PEDRO' WHERE LOWER(barangay) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
-          // Update user address
-          await connection.query(`UPDATE users SET address = 'SAN PEDRO' WHERE LOWER(address) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
-          
-          // Permanent SQL removal/rename of "Purok Avocado" to "Purok Mangga"
+          const connection = await pool.getConnection();
           try {
-            await connection.query(`UPDATE puroks SET name = 'Purok Mangga' WHERE LOWER(name) = 'purok avocado'`);
-            await connection.query(`UPDATE households SET purok = 'Purok Mangga', completeAddress = REPLACE(REPLACE(completeAddress, 'Purok Avocado', 'Purok Mangga'), 'purok avocado', 'Purok Mangga') WHERE LOWER(purok) = 'purok avocado'`);
-            await connection.query(`DELETE FROM puroks WHERE LOWER(name) = 'purok avocado'`);
-            console.log('🧹 [MySQL Migration] Successfully removed and migrated "Purok Avocado" references.');
-          } catch (purokMigrateErr: any) {
-            console.warn('⚠️ [MySQL Migration] Could not migrate Purok Avocado:', purokMigrateErr.message);
-          }
-          
-          console.log('🧹 [MySQL Migration] Executed direct cleanup queries for "San Francisco" / "San Fancisco" barangay data.');
-        } catch (dbCleanupErr: any) {
-          console.warn('⚠️ [MySQL Migration] Silent skip of direct cleanup queries:', dbCleanupErr.message);
-        }
+            // Auto-provision schema on boot if database is brand new
+            await this.ensureMySQLSchema(connection);
 
-        const getVal = (obj: any, ...keys: string[]): any => {
-          if (!obj) return undefined;
-          for (const key of keys) {
-            if (obj[key] !== undefined) return obj[key];
-            const lowerKey = key.toLowerCase();
-            for (const k in obj) {
-              if (k.toLowerCase() === lowerKey && obj[k] !== undefined) {
-                return obj[k];
-              }
-            }
-          }
-          return undefined;
-        };
-
-        // A. Users
-        const [userRows] = await connection.query('SELECT * FROM users');
-        const users: User[] = (userRows as any[]).map((u: any) => ({
-          id: u.id,
-          fullName: u.fullName,
-          email: u.email,
-          password: u.password,
-          position: u.position,
-          address: u.address || '',
-          groupAssigned: u.groupAssigned || null,
-          status: u.status,
-          createdAt: u.createdAt,
-          updatedAt: u.updatedAt || undefined,
-          profilePicture: u.profilePicture || undefined,
-          contactNumber: u.contactNumber || undefined,
-          dailyRate: u.dailyRate !== undefined && u.dailyRate !== null ? parseFloat(u.dailyRate) : undefined
-        }));
-
-        // Always guarantee that our primary requested administrator accounts are seeded and approved inside MySQL
-        const adminEmails = ['elthrone1233@gmail.com', 'saintfrancisclinic2026@gmail.com'];
-        for (const adminEmail of adminEmails) {
-          const hasAdmin = users.some(u => u.email?.toLowerCase() === adminEmail.toLowerCase());
-          if (!hasAdmin) {
-            const isPrimary = adminEmail === 'elthrone1233@gmail.com';
-            const adminUser: User = {
-              id: isPrimary ? 'usr_admin' : 'usr_admin2',
-              fullName: isPrimary ? 'System Admin' : 'Saint Francis Admin',
-              email: adminEmail,
-              password: 'rakionista021994',
-              position: 'ADMIN',
-              address: 'San Francisco',
-              groupAssigned: null,
-              status: 'Approved',
-              createdAt: new Date().toISOString()
-            };
-            users.push(adminUser);
-            
+            // Permanent SQL removal of SAN FRANCISCO / SAN FANCISCO
             try {
-              await connection.query(
-                `INSERT INTO users (id, fullName, email, password, position, address, groupAssigned, status, createdAt)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE fullName=VALUES(fullName), password=VALUES(password), position=VALUES(position), status=VALUES(status)`,
-                [
-                  adminUser.id, adminUser.fullName, adminUser.email, adminUser.password, 
-                  adminUser.position, adminUser.address, adminUser.groupAssigned, 
-                  adminUser.status, adminUser.createdAt
-                ]
-              );
-              console.log(`🛡️ Auto-seeded administrator ${adminEmail} directly into MySQL because it was missing.`);
-            } catch (err: any) {
-              console.error(`Failed to write auto-seeded admin (${adminEmail}) into MySQL:`, err.message);
+              // Delete San Francisco barangay record
+              await connection.query(`DELETE FROM barangays WHERE LOWER(name) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
+              // Delete Puroks belonging to San Francisco
+              await connection.query(`DELETE FROM puroks WHERE LOWER(barangay) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
+              // Delete Seed household
+              await connection.query(`DELETE FROM households WHERE id = 'hsh_1'`);
+              // Migrate any other households with San Francisco address
+              await connection.query(`UPDATE households SET barangay = 'SAN PEDRO', completeAddress = REPLACE(completeAddress, 'San Francisco', 'SAN PEDRO') WHERE LOWER(barangay) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
+              // Delete Seed health_records
+              await connection.query(`DELETE FROM health_records WHERE id IN ('med_1', 'med_2')`);
+              // Migrate other health records
+              await connection.query(`UPDATE health_records SET barangay = 'SAN PEDRO' WHERE LOWER(barangay) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
+              // Update user address
+              await connection.query(`UPDATE users SET address = 'SAN PEDRO' WHERE LOWER(address) IN ('san francisco', 'san fancisco', 'sanfrancisco', 'sanfancisco')`);
+              
+              // Permanent SQL removal/rename of "Purok Avocado" to "Purok Mangga"
+              try {
+                await connection.query(`UPDATE puroks SET name = 'Purok Mangga' WHERE LOWER(name) = 'purok avocado'`);
+                await connection.query(`UPDATE households SET purok = 'Purok Mangga', completeAddress = REPLACE(REPLACE(completeAddress, 'Purok Avocado', 'Purok Mangga'), 'purok avocado', 'Purok Mangga') WHERE LOWER(purok) = 'purok avocado'`);
+                await connection.query(`DELETE FROM puroks WHERE LOWER(name) = 'purok avocado'`);
+                console.log('🧹 [Background Sync] Successfully removed and migrated "Purok Avocado" references.');
+              } catch (purokMigrateErr: any) {
+                console.warn('⚠️ [Background Sync] Could not migrate Purok Avocado:', purokMigrateErr.message);
+              }
+              
+              console.log('🧹 [Background Sync] Executed direct cleanup queries for "San Francisco" / "San Fancisco" barangay data.');
+            } catch (dbCleanupErr: any) {
+              console.warn('⚠️ [Background Sync] Silent skip of direct cleanup queries:', dbCleanupErr.message);
             }
-          }
-        }
 
-        // B. Site Settings
-        const [settingsRows] = await connection.query('SELECT * FROM site_settings LIMIT 1');
-        let settings = state.settings;
-        if ((settingsRows as any[]).length > 0) {
-          const s = (settingsRows as any[])[0];
-          settings = {
-            faviconLogo: s.faviconLogo,
-            faviconTitle: s.faviconTitle,
-            websiteTitle: s.websiteTitle,
-            websiteLogo: s.websiteLogo,
-            seoTitle: s.seoTitle || '',
-            seoDescription: s.seoDescription || '',
-            seoKeywords: s.seoKeywords || '',
-            squadDeleteAction: s.squadDeleteAction || 'ARCHIVE',
-            userPagePermissions: (() => {
-              try {
-                return s.userPagePermissions ? JSON.parse(s.userPagePermissions) : undefined;
-              } catch (e) {
-                return undefined;
+            const getVal = (obj: any, ...keys: string[]): any => {
+              if (!obj) return undefined;
+              for (const key of keys) {
+                if (obj[key] !== undefined) return obj[key];
+                const lowerKey = key.toLowerCase();
+                for (const k in obj) {
+                  if (k.toLowerCase() === lowerKey && obj[k] !== undefined) {
+                    return obj[k];
+                  }
+                }
               }
-            })(),
-            basePcuRate: s.basePcuRate !== undefined ? Number(s.basePcuRate) : 20
-          };
-        }
+              return undefined;
+            };
 
-        // C. Barangays
-        const [barangayRows] = await connection.query('SELECT * FROM barangays');
-        const barangays = (barangayRows as any[]).map((b: any) => ({
-          id: b.id,
-          name: b.name,
-          puroksCount: b.puroksCount ?? 0,
-          yakapWillingCount: b.yakapWillingCount ?? 0,
-          householdProgressBar: b.householdProgressBar ?? 0,
-          membersProgressBar: b.membersProgressBar ?? 0,
-          pmrfProgressBar: b.pmrfProgressBar ?? 0
-        }));
+            // A. Users
+            const [userRows] = await connection.query('SELECT * FROM users');
+            const users: User[] = (userRows as any[]).map((u: any) => ({
+              id: u.id,
+              fullName: u.fullName,
+              email: u.email,
+              password: u.password,
+              position: u.position,
+              address: u.address || '',
+              groupAssigned: u.groupAssigned || null,
+              status: u.status,
+              createdAt: u.createdAt,
+              updatedAt: u.updatedAt || undefined,
+              profilePicture: u.profilePicture || undefined,
+              contactNumber: u.contactNumber || undefined,
+              dailyRate: u.dailyRate !== undefined && u.dailyRate !== null ? parseFloat(u.dailyRate) : undefined
+            }));
 
-        // D. Puroks
-        const [purokRows] = await connection.query('SELECT * FROM puroks');
-        const puroks = (purokRows as any[]).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          barangay: p.barangay,
-          barangay_id: p.barangay_id ?? null,
-          householdCount: p.householdCount ?? 0,
-          memberCount: p.memberCount ?? 0,
-          pmrfCount: p.pmrfCount ?? 0,
-          yakapWillingCount: p.yakapWillingCount ?? 0
-        }));
-
-        // E. Households Registry
-        const [householdRows] = await connection.query('SELECT * FROM households');
-        const households = (householdRows as any[]).map((h: any) => {
-          let attachmentsArr: string[] = [];
-          try {
-            attachmentsArr = h.attachments ? JSON.parse(h.attachments) : [];
-          } catch (e) {
-            attachmentsArr = [];
-          }
-
-          let pmrfDetailsObj: any = undefined;
-          if (h.pmrfDetails) {
-            try { pmrfDetailsObj = JSON.parse(h.pmrfDetails); } catch (e) {}
-          }
-
-          let fpeDetailsObj: any = undefined;
-          if (h.fpeDetails) {
-            try { fpeDetailsObj = JSON.parse(h.fpeDetails); } catch (e) {}
-          }
-
-          let pcsfDetailsObj: any = undefined;
-          if (h.pcsfDetails) {
-            try { pcsfDetailsObj = JSON.parse(h.pcsfDetails); } catch (e) {}
-          }
-
-          return {
-            id: h.id,
-            householdNumber: h.householdNumber,
-            householdHead: h.householdHead,
-            contactNumber: h.contactNumber || '',
-            completeAddress: h.completeAddress || '',
-            barangay: h.barangay,
-            purok: h.purok,
-            latitude: h.latitude !== null && h.latitude !== undefined ? parseFloat(h.latitude.toString()) : undefined,
-            longitude: h.longitude !== null && h.longitude !== undefined ? parseFloat(h.longitude.toString()) : undefined,
-            pmrfStatus: h.pmrfStatus || 'Pending',
-            yakapWillingStatus: h.yakapWillingStatus || 'Pending',
-            approvalStatus: h.approvalStatus || 'Pending',
-            attachments: attachmentsArr,
-            remarks: h.remarks || undefined,
-            pmrfDetails: pmrfDetailsObj,
-            fpeDetails: fpeDetailsObj,
-            pcsfDetails: pcsfDetailsObj,
-            createdBy: h.createdBy,
-            updatedBy: h.updatedBy || undefined,
-            createdAt: h.createdAt,
-            updatedAt: h.updatedAt || undefined,
-            deletedBy: h.deletedBy || undefined,
-            deletedAt: h.deletedAt || undefined,
-            submittedByAccountId: h.submittedByAccountId || undefined,
-            submittedByUsername: h.submittedByUsername || undefined,
-            dateSubmitted: h.dateSubmitted || undefined,
-            submissionReferenceNumber: h.submissionReferenceNumber || undefined,
-            isFpePcsfOnly: h.isFpePcsfOnly === 1 || h.isFpePcsfOnly === true || false,
-            approvedBy: h.approvedBy || undefined,
-            approvalDate: h.approvalDate || undefined,
-            disapprovedBy: h.disapprovedBy || undefined,
-            disapprovalRemarks: h.disapprovalRemarks || undefined,
-            payrollSettled: h.payrollSettled === 1 || h.payrollSettled === true || false,
-            resubmissionHistory: (() => {
-              if (!h.resubmissionHistory) return [];
-              try {
-                return JSON.parse(h.resubmissionHistory);
-              } catch (e) {
-                return [];
+            // Always guarantee that our primary requested administrator accounts are seeded and approved inside MySQL
+            const adminEmails = ['elthrone1233@gmail.com', 'saintfrancisclinic2026@gmail.com'];
+            for (const adminEmail of adminEmails) {
+              const hasAdmin = users.some(u => u.email?.toLowerCase() === adminEmail.toLowerCase());
+              if (!hasAdmin) {
+                const isPrimary = adminEmail === 'elthrone1233@gmail.com';
+                const adminUser: User = {
+                  id: isPrimary ? 'usr_admin' : 'usr_admin2',
+                  fullName: isPrimary ? 'System Admin' : 'Saint Francis Admin',
+                  email: adminEmail,
+                  password: 'rakionista021994',
+                  position: 'ADMIN',
+                  address: 'San Francisco',
+                  groupAssigned: null,
+                  status: 'Approved',
+                  createdAt: new Date().toISOString()
+                };
+                users.push(adminUser);
+                
+                try {
+                  await connection.query(
+                    `INSERT INTO users (id, fullName, email, password, position, address, groupAssigned, status, createdAt)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE fullName=VALUES(fullName), password=VALUES(password), position=VALUES(position), status=VALUES(status)`,
+                    [
+                      adminUser.id, adminUser.fullName, adminUser.email, adminUser.password, 
+                      adminUser.position, adminUser.address, adminUser.groupAssigned, 
+                      adminUser.status, adminUser.createdAt
+                    ]
+                  );
+                  console.log(`🛡️ Auto-seeded administrator ${adminEmail} directly into MySQL because it was missing.`);
+                } catch (err: any) {
+                  console.error(`Failed to write auto-seeded admin (${adminEmail}) into MySQL:`, err.message);
+                }
               }
-            })()
-          };
-        });
+            }
 
-        // F. Household Members
-        const [memberRows] = await connection.query('SELECT * FROM household_members');
-        const householdMembers = (memberRows as any[]).map((m: any) => ({
-          id: getVal(m, 'id'),
-          householdId: getVal(m, 'householdId', 'household_id', 'householdid'),
-          firstName: getVal(m, 'firstName', 'first_name', 'firstname'),
-          middleName: getVal(m, 'middleName', 'middle_name', 'middlename') || '',
-          lastName: getVal(m, 'lastName', 'last_name', 'lastname'),
-          gender: getVal(m, 'gender', 'sex'),
-          birthdate: getVal(m, 'birthdate', 'birthDate', 'date_of_birth'),
-          age: getVal(m, 'age'),
-          civilStatus: getVal(m, 'civilStatus', 'civilstatus', 'civil_status'),
-          occupation: getVal(m, 'occupation') || '',
-          relationship: getVal(m, 'relationship')
-        }));
+            // B. Site Settings
+            const [settingsRows] = await connection.query('SELECT * FROM site_settings LIMIT 1');
+            let settings = state.settings;
+            if ((settingsRows as any[]).length > 0) {
+              const s = (settingsRows as any[])[0];
+              settings = {
+                faviconLogo: s.faviconLogo,
+                faviconTitle: s.faviconTitle,
+                websiteTitle: s.websiteTitle,
+                websiteLogo: s.websiteLogo,
+                seoTitle: s.seoTitle || '',
+                seoDescription: s.seoDescription || '',
+                seoKeywords: s.seoKeywords || '',
+                squadDeleteAction: s.squadDeleteAction || 'ARCHIVE',
+                userPagePermissions: (() => {
+                  try {
+                    return s.userPagePermissions ? JSON.parse(s.userPagePermissions) : undefined;
+                  } catch (e) {
+                    return undefined;
+                  }
+                })(),
+                basePcuRate: s.basePcuRate !== undefined ? Number(s.basePcuRate) : 20
+              };
+            }
 
-        // G. Dependents
-        const [dependentRows] = await connection.query('SELECT * FROM dependents');
-        let pmrfDependentRows: any[] = [];
-        try {
-          const [parsedPmrfDeps] = await connection.query('SELECT * FROM pmrf_dependents');
-          if (parsedPmrfDeps && Array.isArray(parsedPmrfDeps)) {
-            pmrfDependentRows = parsedPmrfDeps;
-          }
-        } catch (pmrfErr: any) {
-          console.log('💡 Note: pmrf_dependents read fallback skipped:', pmrfErr.message);
-        }
+            // C. Barangays
+            const [barangayRows] = await connection.query('SELECT * FROM barangays');
+            const barangays = (barangayRows as any[]).map((b: any) => ({
+              id: b.id,
+              name: b.name,
+              puroksCount: b.puroksCount ?? 0,
+              yakapWillingCount: b.yakapWillingCount ?? 0,
+              householdProgressBar: b.householdProgressBar ?? 0,
+              membersProgressBar: b.membersProgressBar ?? 0,
+              pmrfProgressBar: b.pmrfProgressBar ?? 0
+            }));
 
-        // Merge rows from both dependents and pmrf_dependents by unique ID
-        const combinedDependentRows = [...(dependentRows as any[])];
-        pmrfDependentRows.forEach((pRow: any) => {
-          const pmrfId = getVal(pRow, 'id');
-          if (!combinedDependentRows.some(dRow => getVal(dRow, 'id') === pmrfId)) {
-            // Map keys back to expected structure
-            combinedDependentRows.push({
-              id: pmrfId,
-              householdId: getVal(pRow, 'pmrf_id', 'pmrfRecordId', 'pmrf_record_id', 'householdId', 'household_id', 'householdid'),
-              fullName: getVal(pRow, 'fullName', 'fullname') || `${getVal(pRow, 'last_name') || ''}, ${getVal(pRow, 'first_name') || ''}${getVal(pRow, 'name_ext') ? ' ' + getVal(pRow, 'name_ext') : ''}`.trim().toUpperCase(),
-              gender: getVal(pRow, 'sex', 'gender') || 'Female',
-              age: getVal(pRow, 'age'),
-              relationship: getVal(pRow, 'relationship'),
-              birthDate: getVal(pRow, 'date_of_birth', 'birthDate', 'birthdate'),
-              birthdate: getVal(pRow, 'date_of_birth', 'birthDate', 'birthdate'),
-              civilStatus: getVal(pRow, 'civilStatus', 'civilstatus'),
-              lastName: getVal(pRow, 'last_name', 'lastName'),
-              firstName: getVal(pRow, 'first_name', 'firstName'),
-              middleName: getVal(pRow, 'middle_name', 'middleName'),
-              nameExt: getVal(pRow, 'name_ext', 'nameExt'),
-              noMiddleName: getVal(pRow, 'no_mn', 'noMiddleName') === 1 || getVal(pRow, 'noMiddleName') === true,
-              mononym: getVal(pRow, 'mononym') === 1 || getVal(pRow, 'mononym') === true,
-              citizenship: getVal(pRow, 'citizenship') || 'FILIPINO',
-              isDisabled: getVal(pRow, 'isDisabled', 'isdisabled') === 1 || getVal(pRow, 'isDisabled') === true,
-              pmrfSubmissionId: getVal(pRow, 'submission_id', 'pmrfSubmissionId'),
-              pmrfRecordId: getVal(pRow, 'pmrf_id', 'pmrfRecordId'),
-              memberPin: getVal(pRow, 'memberPin', 'memberpin'),
-              submittedByAccountId: getVal(pRow, 'submittedByAccountId', 'submittedbyaccountid'),
-              createdAt: getVal(pRow, 'createdAt', 'createdat'),
-              sex: getVal(pRow, 'sex', 'gender') || 'Female',
-              pswd: getVal(pRow, 'pswd') === 1 || getVal(pRow, 'pswd') === true,
-              last_name: getVal(pRow, 'last_name'),
-              first_name: getVal(pRow, 'first_name'),
-              middle_name: getVal(pRow, 'middle_name'),
-              name_ext: getVal(pRow, 'name_ext'),
-              date_of_birth: getVal(pRow, 'date_of_birth'),
-              no_mn: getVal(pRow, 'no_mn')
+            // D. Puroks
+            const [purokRows] = await connection.query('SELECT * FROM puroks');
+            const puroks = (purokRows as any[]).map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              barangay: p.barangay,
+              barangay_id: p.barangay_id ?? null,
+              householdCount: p.householdCount ?? 0,
+              memberCount: p.memberCount ?? 0,
+              pmrfCount: p.pmrfCount ?? 0,
+              yakapWillingCount: p.yakapWillingCount ?? 0
+            }));
+
+            // E. Households Registry
+            const [householdRows] = await connection.query('SELECT * FROM households');
+            const households = (householdRows as any[]).map((h: any) => {
+              let attachmentsArr: string[] = [];
+              try {
+                attachmentsArr = h.attachments ? JSON.parse(h.attachments) : [];
+              } catch (e) {
+                attachmentsArr = [];
+              }
+
+              let pmrfDetailsObj: any = undefined;
+              if (h.pmrfDetails) {
+                try { pmrfDetailsObj = JSON.parse(h.pmrfDetails); } catch (e) {}
+              }
+
+              let fpeDetailsObj: any = undefined;
+              if (h.fpeDetails) {
+                try { fpeDetailsObj = JSON.parse(h.fpeDetails); } catch (e) {}
+              }
+
+              let pcsfDetailsObj: any = undefined;
+              if (h.pcsfDetails) {
+                try { pcsfDetailsObj = JSON.parse(h.pcsfDetails); } catch (e) {}
+              }
+
+              return {
+                id: h.id,
+                householdNumber: h.householdNumber,
+                householdHead: h.householdHead,
+                contactNumber: h.contactNumber || '',
+                completeAddress: h.completeAddress || '',
+                barangay: h.barangay,
+                purok: h.purok,
+                latitude: h.latitude !== null && h.latitude !== undefined ? parseFloat(h.latitude.toString()) : undefined,
+                longitude: h.longitude !== null && h.longitude !== undefined ? parseFloat(h.longitude.toString()) : undefined,
+                pmrfStatus: h.pmrfStatus || 'Pending',
+                yakapWillingStatus: h.yakapWillingStatus || 'Pending',
+                approvalStatus: h.approvalStatus || 'Pending',
+                attachments: attachmentsArr,
+                remarks: h.remarks || undefined,
+                pmrfDetails: pmrfDetailsObj,
+                fpeDetails: fpeDetailsObj,
+                pcsfDetails: pcsfDetailsObj,
+                createdBy: h.createdBy,
+                updatedBy: h.updatedBy || undefined,
+                createdAt: h.createdAt,
+                updatedAt: h.updatedAt || undefined,
+                deletedBy: h.deletedBy || undefined,
+                deletedAt: h.deletedAt || undefined,
+                submittedByAccountId: h.submittedByAccountId || undefined,
+                submittedByUsername: h.submittedByUsername || undefined,
+                dateSubmitted: h.dateSubmitted || undefined,
+                submissionReferenceNumber: h.submissionReferenceNumber || undefined,
+                isFpePcsfOnly: h.isFpePcsfOnly === 1 || h.isFpePcsfOnly === true || false,
+                approvedBy: h.approvedBy || undefined,
+                approvalDate: h.approvalDate || undefined,
+                disapprovedBy: h.disapprovedBy || undefined,
+                disapprovalRemarks: h.disapprovalRemarks || undefined,
+                payrollSettled: h.payrollSettled === 1 || h.payrollSettled === true || false,
+                resubmissionHistory: (() => {
+                  if (!h.resubmissionHistory) return [];
+                  try {
+                    return JSON.parse(h.resubmissionHistory);
+                  } catch (e) {
+                    return [];
+                  }
+                })()
+              };
             });
-          }
-        });
 
-        const dependents = combinedDependentRows.map((d: any) => {
-          const ln = getVal(d, 'last_name', 'lastName');
-          const fn = getVal(d, 'first_name', 'firstName');
-          const mn = getVal(d, 'middle_name', 'middleName');
-          const ext = getVal(d, 'name_ext', 'nameExt');
-          const dob = getVal(d, 'date_of_birth', 'birthDate', 'birthdate');
-          const noMnVal = getVal(d, 'no_mn', 'noMiddleName');
+            // F. Household Members
+            const [memberRows] = await connection.query('SELECT * FROM household_members');
+            const householdMembers = (memberRows as any[]).map((m: any) => ({
+              id: getVal(m, 'id'),
+              householdId: getVal(m, 'householdId', 'household_id', 'householdid'),
+              firstName: getVal(m, 'firstName', 'first_name', 'firstname'),
+              middleName: getVal(m, 'middleName', 'middle_name', 'middlename') || '',
+              lastName: getVal(m, 'lastName', 'last_name', 'lastname'),
+              gender: getVal(m, 'gender', 'sex'),
+              birthdate: getVal(m, 'birthdate', 'birthDate', 'date_of_birth'),
+              age: getVal(m, 'age'),
+              civilStatus: getVal(m, 'civilStatus', 'civilstatus', 'civil_status'),
+              occupation: getVal(m, 'occupation') || '',
+              relationship: getVal(m, 'relationship')
+            }));
 
-          const computedFullName = getVal(d, 'fullName', 'fullname') || `${ln || ''}, ${fn || ''}${ext ? ' ' + ext : ''}`.trim().toUpperCase();
-
-          return {
-            id: getVal(d, 'id'),
-            householdId: getVal(d, 'householdId', 'household_id', 'householdid', 'pmrf_id', 'pmrfRecordId'),
-            fullName: computedFullName,
-            gender: getVal(d, 'gender', 'sex') || 'Female',
-            age: getVal(d, 'age') !== undefined && getVal(d, 'age') !== null ? parseInt(getVal(d, 'age') as any) : 0,
-            relationship: getVal(d, 'relationship') || 'Child',
-            birthDate: dob || '',
-            birthdate: dob || '',
-            civilStatus: getVal(d, 'civilStatus', 'civilstatus') || 'Single',
-            lastName: ln || '',
-            firstName: fn || '',
-            middleName: mn || '',
-            nameExt: ext || '',
-            noMiddleName: noMnVal === 1 || noMnVal === true,
-            mononym: getVal(d, 'mononym') === 1 || getVal(d, 'mononym') === true,
-            citizenship: getVal(d, 'citizenship') || 'FILIPINO',
-            isDisabled: getVal(d, 'isDisabled', 'isdisabled') === 1 || getVal(d, 'isDisabled') === true,
-            pmrfSubmissionId: getVal(d, 'pmrfSubmissionId', 'submission_id') || null,
-            pmrfRecordId: getVal(d, 'pmrfRecordId', 'pmrf_id') || null,
-            memberPin: getVal(d, 'memberPin') || null,
-            submittedByAccountId: getVal(d, 'submittedByAccountId') || null,
-            createdAt: getVal(d, 'createdAt') || null,
-            sex: getVal(d, 'sex', 'gender') || 'Female',
-            pswd: getVal(d, 'pswd') === 1 || getVal(d, 'pswd') === true,
-            last_name: ln || '',
-            first_name: fn || '',
-            middle_name: mn || '',
-            name_ext: ext || '',
-            date_of_birth: dob || '',
-            no_mn: noMnVal === 1 || noMnVal === true ? 1 : 0
-          };
-        });
-
-        // H. Groups
-        const [groupRows] = await connection.query('SELECT * FROM groups');
-        const groups = (groupRows as any[]).map((g: any) => {
-          let coLeadersArr: string[] = [];
-          try {
-            coLeadersArr = g.coLeaders ? JSON.parse(g.coLeaders) : [];
-          } catch (e) {}
-
-          let barArr: string[] = [];
-          try {
-            barArr = g.assignedBarangays ? JSON.parse(g.assignedBarangays) : [];
-          } catch (e) {}
-
-          return {
-            id: g.id,
-            name: g.name,
-            leader: g.leader,
-            coLeaders: coLeadersArr,
-            assignedBarangays: barArr,
-            ratePerPerson: g.ratePerPerson !== null ? parseFloat(g.ratePerPerson.toString()) : 0,
-            isArchived: g.isArchived === 1,
-            barangayFolderId: g.barangayFolderId || null,
-            createdAt: g.createdAt || null,
-            status: g.status || 'Pending'
-          };
-        });
-
-        // I. Paid Payrolls
-        const [payrollRows] = await connection.query('SELECT * FROM paid_payrolls');
-        const paidPayrolls = (payrollRows as any[]).map((p: any) => ({
-          id: p.id,
-          groupName: p.groupName,
-          dateRange: p.dateRange,
-          populationCount: p.populationCount ?? 0,
-          ratePerPerson: p.ratePerPerson !== null ? parseFloat(p.ratePerPerson.toString()) : 0,
-          totalAmountPaid: p.totalAmountPaid !== null ? parseFloat(p.totalAmountPaid.toString()) : 0,
-          paidDate: p.paidDate,
-          settledBy: p.settledBy,
-          remarks: p.remarks || undefined
-        }));
-
-        // J. Health Records
-        const [healthRows] = await connection.query('SELECT * FROM health_records');
-        const healthRecords = (healthRows as any[]).map((h: any) => ({
-          id: h.id,
-          patientName: h.patientName,
-          householdId: h.householdId,
-          householdHead: h.householdHead,
-          barangay: h.barangay,
-          diagnosis: h.diagnosis,
-          treatment: h.treatment || '',
-          medications: h.medications || '',
-          notes: h.notes || '',
-          date: h.date
-        }));
-
-        // K. Logs
-        const [logRows] = await connection.query('SELECT * FROM activity_logs');
-        const activityLogs = (logRows as any[]).map((l: any) => ({
-          id: l.id,
-          user: l.user,
-          action: l.action,
-          module: l.module,
-          date: l.date,
-          time: l.time
-        }));
-
-        // L. Notifications
-        const [notRows] = await connection.query('SELECT * FROM notifications');
-        const notifications = (notRows as any[]).map((n: any) => ({
-          id: n.id,
-          title: n.title,
-          message: n.message,
-          type: n.type || 'INFO',
-          read: n.is_read === 1,
-          createdAt: n.createdAt
-        }));
-
-        // M. Timecards
-        const [timecardRows] = await connection.query('SELECT * FROM timecards');
-        const timecards = (timecardRows as any[]).map((t: any) => ({
-          id: t.id,
-          userId: t.userId,
-          userEmail: t.userEmail,
-          userName: t.userName,
-          type: t.type,
-          timestamp: t.timestamp,
-          photo: t.photo,
-          latitude: t.latitude !== null && t.latitude !== undefined ? parseFloat(t.latitude.toString()) : undefined,
-          longitude: t.longitude !== null && t.longitude !== undefined ? parseFloat(t.longitude.toString()) : undefined,
-          deviceInfo: t.deviceInfo || undefined,
-          settled: t.settled === 1,
-          settlementId: t.settlementId || null,
-          isOvertime: t.isOvertime === 1 || t.isOvertime === true,
-          otHours: t.otHours !== null && t.otHours !== undefined ? parseFloat(t.otHours.toString()) : undefined
-        }));
-
-        // N. IT Settled Payrolls
-        let itSettledPayrolls: any[] = [];
-        try {
-          const [itPayrollRows] = await connection.query('SELECT * FROM it_settled_payrolls');
-          itSettledPayrolls = (itPayrollRows as any[]).map((itUrl: any) => {
-            let bdownObj: any[] = [];
-            if (itUrl.breakdown) {
-              try { bdownObj = JSON.parse(itUrl.breakdown); } catch (e) {}
+            // G. Dependents
+            const [dependentRows] = await connection.query('SELECT * FROM dependents');
+            let pmrfDependentRows: any[] = [];
+            try {
+              const [parsedPmrfDeps] = await connection.query('SELECT * FROM pmrf_dependents');
+              if (parsedPmrfDeps && Array.isArray(parsedPmrfDeps)) {
+                pmrfDependentRows = parsedPmrfDeps;
+              }
+            } catch (pmrfErr: any) {
+              console.log('💡 Note: pmrf_dependents read fallback skipped:', pmrfErr.message);
             }
-            return {
-              id: itUrl.id,
-              userId: itUrl.userId,
-              userEmail: itUrl.userEmail,
-              userName: itUrl.userName,
-              dailyRate: itUrl.dailyRate !== null ? parseFloat(itUrl.dailyRate.toString()) : 440,
-              dateRange: itUrl.dateRange,
-              daysPresent: itUrl.daysPresent ?? 0,
-              daysAbsent: itUrl.daysAbsent ?? 0,
-              totalLateMinutes: itUrl.totalLateMinutes ?? 0,
-              totalDeductions: itUrl.totalDeductions !== null ? parseFloat(itUrl.totalDeductions.toString()) : 0,
-              totalEarned: itUrl.totalEarned !== null ? parseFloat(itUrl.totalEarned.toString()) : 0,
-              paidDate: itUrl.paidDate,
-              settledBy: itUrl.settledBy,
-              remarks: itUrl.remarks || '',
-              breakdown: bdownObj
-            };
-          });
-        } catch (e: any) {
-          console.warn('⚠️ Missing or corrupt it_settled_payrolls database table loaded fallback:', e.message);
-        }
 
-        // O. PCU Files
-        let pcuFiles: any[] = [];
-        try {
-          const [pcuRows] = await connection.query('SELECT * FROM pcu_files');
-          pcuFiles = (pcuRows as any[]).map((pcu: any) => ({
-            id: pcu.id,
-            fullName: pcu.fullName,
-            birthday: pcu.birthday,
-            fileName: pcu.fileName,
-            fileData: pcu.fileData,
-            uploadDate: pcu.uploadDate,
-            uploadedBy: pcu.uploadedBy
-          }));
-        } catch (e: any) {
-          console.warn('⚠️ Missing or corrupt pcu_files database table loaded fallback:', e.message);
-        }
+            // Merge rows from both dependents and pmrf_dependents by unique ID
+            const combinedDependentRows = [...(dependentRows as any[])];
+            pmrfDependentRows.forEach((pRow: any) => {
+              const pmrfId = getVal(pRow, 'id');
+              if (!combinedDependentRows.some(dRow => getVal(dRow, 'id') === pmrfId)) {
+                // Map keys back to expected structure
+                combinedDependentRows.push({
+                  id: pmrfId,
+                  householdId: getVal(pRow, 'pmrf_id', 'pmrfRecordId', 'pmrf_record_id', 'householdId', 'household_id', 'householdid'),
+                  fullName: getVal(pRow, 'fullName', 'fullname') || `${getVal(pRow, 'last_name') || ''}, ${getVal(pRow, 'first_name') || ''}${getVal(pRow, 'name_ext') ? ' ' + getVal(pRow, 'name_ext') : ''}`.trim().toUpperCase(),
+                  gender: getVal(pRow, 'sex', 'gender') || 'Female',
+                  age: getVal(pRow, 'age'),
+                  relationship: getVal(pRow, 'relationship'),
+                  birthDate: getVal(pRow, 'date_of_birth', 'birthDate', 'birthdate'),
+                  birthdate: getVal(pRow, 'date_of_birth', 'birthDate', 'birthdate'),
+                  civilStatus: getVal(pRow, 'civilStatus', 'civilstatus'),
+                  lastName: getVal(pRow, 'last_name', 'lastName'),
+                  firstName: getVal(pRow, 'first_name', 'firstName'),
+                  middleName: getVal(pRow, 'middle_name', 'middleName'),
+                  nameExt: getVal(pRow, 'name_ext', 'nameExt'),
+                  noMiddleName: getVal(pRow, 'no_mn', 'noMiddleName') === 1 || getVal(pRow, 'noMiddleName') === true,
+                  mononym: getVal(pRow, 'mononym') === 1 || getVal(pRow, 'mononym') === true,
+                  citizenship: getVal(pRow, 'citizenship') || 'FILIPINO',
+                  isDisabled: getVal(pRow, 'isDisabled', 'isdisabled') === 1 || getVal(pRow, 'isDisabled') === true,
+                  pmrfSubmissionId: getVal(pRow, 'submission_id', 'pmrfSubmissionId'),
+                  pmrfRecordId: getVal(pRow, 'pmrf_id', 'pmrfRecordId'),
+                  memberPin: getVal(pRow, 'memberPin', 'memberpin'),
+                  submittedByAccountId: getVal(pRow, 'submittedByAccountId', 'submittedbyaccountid'),
+                  createdAt: getVal(pRow, 'createdAt', 'createdat'),
+                  sex: getVal(pRow, 'sex', 'gender') || 'Female',
+                  pswd: getVal(pRow, 'pswd') === 1 || getVal(pRow, 'pswd') === true,
+                  last_name: getVal(pRow, 'last_name'),
+                  first_name: getVal(pRow, 'first_name'),
+                  middle_name: getVal(pRow, 'middle_name'),
+                  name_ext: getVal(pRow, 'name_ext'),
+                  date_of_birth: getVal(pRow, 'date_of_birth'),
+                  no_mn: getVal(pRow, 'no_mn')
+                });
+              }
+            });
 
-        // Check if the loaded MySQL state is completely empty
-        const isMySQLCurrentlyEmpty = 
-          (users.length === 0 || (users.length === 1 && users[0].email === 'elthrone1233@gmail.com')) &&
-          barangays.length === 0 &&
-          puroks.length === 0 &&
-          households.length === 0 &&
-          healthRecords.length === 0;
+            const dependents = combinedDependentRows.map((d: any) => {
+              const ln = getVal(d, 'last_name', 'lastName');
+              const fn = getVal(d, 'first_name', 'firstName');
+              const mn = getVal(d, 'middle_name', 'middleName');
+              const ext = getVal(d, 'name_ext', 'nameExt');
+              const dob = getVal(d, 'date_of_birth', 'birthDate', 'birthdate');
+              const noMnVal = getVal(d, 'no_mn', 'noMiddleName');
 
-        // Check if the local state loaded on boot has actual user registrations, barangays, or records
-        const hasLocalDataToSeed = 
-          state && (
-            (state.barangays && state.barangays.length > 0) ||
-            (state.puroks && state.puroks.length > 0) ||
-            (state.households && state.households.length > 0) ||
-            (state.healthRecords && state.healthRecords.length > 0) ||
-            (state.users && state.users.filter(u => u.email !== 'elthrone1233@gmail.com').length > 0)
-          );
+              const computedFullName = getVal(d, 'fullName', 'fullname') || `${ln || ''}, ${fn || ''}${ext ? ' ' + ext : ''}`.trim().toUpperCase();
 
-        if (isMySQLCurrentlyEmpty && hasLocalDataToSeed) {
-          console.warn('[Database System Safeguard] Connected to MySQL but it is COMPLETELY EMPTY. Local JSON database has data. Overriding empty MySQL with local data to seed remote database and prevent data loss.');
-          this.hasLoadedFromMySQLSuccessfully = true;
-          // Trigger save which will push local state to MySQL
-          this.save();
-        } else {
-          this.state = {
-            users,
-            settings,
-            barangays,
-            puroks,
-            households,
-            householdMembers,
-            dependents,
-            groups,
-            paidPayrolls,
-            healthRecords,
-            activityLogs,
-            notifications,
-            timecards,
-            itSettledPayrolls: itSettledPayrolls.length > 0 ? itSettledPayrolls : (state.itSettledPayrolls || []),
-            pcuFiles: pcuFiles.length > 0 ? pcuFiles : (state.pcuFiles || [])
-          };
-          this.hasLoadedFromMySQLSuccessfully = true;
-          this.populateAllSignatures();
+              return {
+                id: getVal(d, 'id'),
+                householdId: getVal(d, 'householdId', 'household_id', 'householdid', 'pmrf_id', 'pmrfRecordId'),
+                fullName: computedFullName,
+                gender: getVal(d, 'gender', 'sex') || 'Female',
+                age: getVal(d, 'age') !== undefined && getVal(d, 'age') !== null ? parseInt(getVal(d, 'age') as any) : 0,
+                relationship: getVal(d, 'relationship') || 'Child',
+                birthDate: dob || '',
+                birthdate: dob || '',
+                civilStatus: getVal(d, 'civilStatus', 'civilstatus') || 'Single',
+                lastName: ln || '',
+                firstName: fn || '',
+                middleName: mn || '',
+                nameExt: ext || '',
+                noMiddleName: noMnVal === 1 || noMnVal === true,
+                mononym: getVal(d, 'mononym') === 1 || getVal(d, 'mononym') === true,
+                citizenship: getVal(d, 'citizenship') || 'FILIPINO',
+                isDisabled: getVal(d, 'isDisabled', 'isdisabled') === 1 || getVal(d, 'isDisabled') === true,
+                pmrfSubmissionId: getVal(d, 'pmrfSubmissionId', 'submission_id') || null,
+                pmrfRecordId: getVal(d, 'pmrfRecordId', 'pmrf_id') || null,
+                memberPin: getVal(d, 'memberPin') || null,
+                submittedByAccountId: getVal(d, 'submittedByAccountId') || null,
+                createdAt: getVal(d, 'createdAt') || null,
+                sex: getVal(d, 'sex', 'gender') || 'Female',
+                pswd: getVal(d, 'pswd') === 1 || getVal(d, 'pswd') === true,
+                last_name: ln || '',
+                first_name: fn || '',
+                middle_name: mn || '',
+                name_ext: ext || '',
+                date_of_birth: dob || '',
+                no_mn: noMnVal === 1 || noMnVal === true ? 1 : 0
+              };
+            });
 
-          // Write this successfully loaded database state to standard files AND persistent backup
-          try {
-            ensureDataFolder();
-            const serialized = JSON.stringify(this.state, null, 2);
-            fs.writeFileSync(DB_FILE, serialized, 'utf8');
+            // H. Groups
+            const [groupRows] = await connection.query('SELECT * FROM groups');
+            const groups = (groupRows as any[]).map((g: any) => {
+              let coLeadersArr: string[] = [];
+              try {
+                coLeadersArr = g.coLeaders ? JSON.parse(g.coLeaders) : [];
+              } catch (e) {}
+
+              let barArr: string[] = [];
+              try {
+                barArr = g.assignedBarangays ? JSON.parse(g.assignedBarangays) : [];
+              } catch (e) {}
+
+              return {
+                id: g.id,
+                name: g.name,
+                leader: g.leader,
+                coLeaders: coLeadersArr,
+                assignedBarangays: barArr,
+                ratePerPerson: g.ratePerPerson !== null ? parseFloat(g.ratePerPerson.toString()) : 0,
+                isArchived: g.isArchived === 1,
+                barangayFolderId: g.barangayFolderId || null,
+                createdAt: g.createdAt || null,
+                status: g.status || 'Pending'
+              };
+            });
+
+            // I. Paid Payrolls
+            const [payrollRows] = await connection.query('SELECT * FROM paid_payrolls');
+            const paidPayrolls = (payrollRows as any[]).map((p: any) => ({
+              id: p.id,
+              groupName: p.groupName,
+              dateRange: p.dateRange,
+              populationCount: p.populationCount ?? 0,
+              ratePerPerson: p.ratePerPerson !== null ? parseFloat(p.ratePerPerson.toString()) : 0,
+              totalAmountPaid: p.totalAmountPaid !== null ? parseFloat(p.totalAmountPaid.toString()) : 0,
+              paidDate: p.paidDate,
+              settledBy: p.settledBy,
+              remarks: p.remarks || undefined
+            }));
+
+            // J. Health Records
+            const [healthRows] = await connection.query('SELECT * FROM health_records');
+            const healthRecords = (healthRows as any[]).map((h: any) => ({
+              id: h.id,
+              patientName: h.patientName,
+              householdId: h.householdId,
+              householdHead: h.householdHead,
+              barangay: h.barangay,
+              diagnosis: h.diagnosis,
+              treatment: h.treatment || '',
+              medications: h.medications || '',
+              notes: h.notes || '',
+              date: h.date
+            }));
+
+            // K. Logs
+            const [logRows] = await connection.query('SELECT * FROM activity_logs');
+            const activityLogs = (logRows as any[]).map((l: any) => ({
+              id: l.id,
+              user: l.user,
+              action: l.action,
+              module: l.module,
+              date: l.date,
+              time: l.time
+            }));
+
+            // L. Notifications
+            const [notRows] = await connection.query('SELECT * FROM notifications');
+            const notifications = (notRows as any[]).map((n: any) => ({
+              id: n.id,
+              title: n.title,
+              message: n.message,
+              type: n.type || 'INFO',
+              read: n.is_read === 1,
+              createdAt: n.createdAt
+            }));
+
+            // M. Timecards
+            const [timecardRows] = await connection.query('SELECT * FROM timecards');
+            const timecards = (timecardRows as any[]).map((t: any) => ({
+              id: t.id,
+              userId: t.userId,
+              userEmail: t.userEmail,
+              userName: t.userName,
+              type: t.type,
+              timestamp: t.timestamp,
+              photo: t.photo,
+              latitude: t.latitude !== null && t.latitude !== undefined ? parseFloat(t.latitude.toString()) : undefined,
+              longitude: t.longitude !== null && t.longitude !== undefined ? parseFloat(t.longitude.toString()) : undefined,
+              deviceInfo: t.deviceInfo || undefined,
+              settled: t.settled === 1,
+              settlementId: t.settlementId || null,
+              isOvertime: t.isOvertime === 1 || t.isOvertime === true,
+              otHours: t.otHours !== null && t.otHours !== undefined ? parseFloat(t.otHours.toString()) : undefined
+            }));
+
+            // N. IT Settled Payrolls
+            let itSettledPayrolls: any[] = [];
             try {
-              fs.writeFileSync(DB_BACKUP_FILE, serialized, 'utf8');
-            } catch (be) {}
+              const [itPayrollRows] = await connection.query('SELECT * FROM it_settled_payrolls');
+              itSettledPayrolls = (itPayrollRows as any[]).map((itUrl: any) => {
+                let bdownObj: any[] = [];
+                if (itUrl.breakdown) {
+                  try { bdownObj = JSON.parse(itUrl.breakdown); } catch (e) {}
+                }
+                return {
+                  id: itUrl.id,
+                  userId: itUrl.userId,
+                  userEmail: itUrl.userEmail,
+                  userName: itUrl.userName,
+                  dailyRate: itUrl.dailyRate !== null ? parseFloat(itUrl.dailyRate.toString()) : 440,
+                  dateRange: itUrl.dateRange,
+                  daysPresent: itUrl.daysPresent ?? 0,
+                  daysAbsent: itUrl.daysAbsent ?? 0,
+                  totalLateMinutes: itUrl.totalLateMinutes ?? 0,
+                  totalDeductions: itUrl.totalDeductions !== null ? parseFloat(itUrl.totalDeductions.toString()) : 0,
+                  totalEarned: itUrl.totalEarned !== null ? parseFloat(itUrl.totalEarned.toString()) : 0,
+                  paidDate: itUrl.paidDate,
+                  settledBy: itUrl.settledBy,
+                  remarks: itUrl.remarks || '',
+                  breakdown: bdownObj
+                };
+              });
+            } catch (e: any) {
+              console.warn('⚠️ Missing or corrupt it_settled_payrolls database table loaded fallback:', e.message);
+            }
+
+            // O. PCU Files
+            let pcuFiles: any[] = [];
             try {
-              fs.writeFileSync(path.join(process.cwd(), 'saint-francis-db-persistent.json'), serialized, 'utf8');
-            } catch (pe) {}
-          } catch (err: any) {
-            console.warn('[Database Fallback Sync] Failed caching loaded PostgreSQL state to local disk:', err.message);
+              const [pcuRows] = await connection.query('SELECT * FROM pcu_files');
+              pcuFiles = (pcuRows as any[]).map((pcu: any) => ({
+                id: pcu.id,
+                fullName: pcu.fullName,
+                birthday: pcu.birthday,
+                fileName: pcu.fileName,
+                fileData: pcu.fileData,
+                uploadDate: pcu.uploadDate,
+                uploadedBy: pcu.uploadedBy
+              }));
+            } catch (e: any) {
+              console.warn('⚠️ Missing or corrupt pcu_files database table loaded fallback:', e.message);
+            }
+
+            // Check if the loaded MySQL state is completely empty
+            const isMySQLCurrentlyEmpty = 
+              (users.length === 0 || (users.length === 1 && users[0].email === 'elthrone1233@gmail.com')) &&
+              barangays.length === 0 &&
+              puroks.length === 0 &&
+              households.length === 0 &&
+              healthRecords.length === 0;
+
+            // Check if the local state loaded on boot has actual user registrations, barangays, or records
+            const hasLocalDataToSeed = 
+              state && (
+                (state.barangays && state.barangays.length > 0) ||
+                (state.puroks && state.puroks.length > 0) ||
+                (state.households && state.households.length > 0) ||
+                (state.healthRecords && state.healthRecords.length > 0) ||
+                (state.users && state.users.filter(u => u.email !== 'elthrone1233@gmail.com').length > 0)
+              );
+
+            if (isMySQLCurrentlyEmpty && hasLocalDataToSeed) {
+              console.warn('[Database System Safeguard] Connected to MySQL but it is COMPLETELY EMPTY. Local JSON database has data. Overriding empty MySQL with local data to seed remote database and prevent data loss.');
+              this.hasLoadedFromMySQLSuccessfully = true;
+              // Trigger save which will push local state to MySQL
+              this.save();
+            } else {
+              this.state = {
+                users,
+                settings,
+                barangays,
+                puroks,
+                households,
+                householdMembers,
+                dependents,
+                groups,
+                paidPayrolls,
+                healthRecords,
+                activityLogs,
+                notifications,
+                timecards,
+                itSettledPayrolls: itSettledPayrolls.length > 0 ? itSettledPayrolls : (state.itSettledPayrolls || []),
+                pcuFiles: pcuFiles.length > 0 ? pcuFiles : (state.pcuFiles || [])
+              };
+              this.hasLoadedFromMySQLSuccessfully = true;
+              this.populateAllSignatures();
+
+              // Write this successfully loaded database state to standard files AND persistent backup
+              try {
+                ensureDataFolder();
+                const serialized = JSON.stringify(this.state, null, 2);
+                fs.writeFileSync(DB_FILE, serialized, 'utf8');
+                try {
+                  fs.writeFileSync(DB_BACKUP_FILE, serialized, 'utf8');
+                } catch (be) {}
+                try {
+                  fs.writeFileSync(path.join(process.cwd(), 'saint-francis-db-persistent.json'), serialized, 'utf8');
+                } catch (pe) {}
+              } catch (err: any) {
+                console.warn('[Database Fallback Sync] Failed caching loaded PostgreSQL state to local disk:', err.message);
+              }
+            }
+            markMySQLSuccess();
+          } finally {
+            connection.release();
           }
+          this.lastLoadTime = Date.now();
+        } catch (err: any) {
+          markMySQLFailure();
+          console.info('MySQL load query failed (falling back silently to local state):', err.message);
+        } finally {
+          this.loadingPromise = null;
         }
-        markMySQLSuccess();
-      } finally {
-        connection.release();
-      }
-        this.lastLoadTime = Date.now();
-      } catch (err: any) {
-        markMySQLFailure();
-        console.info('MySQL load query failed (falling back silently to local state):', err.message);
-      } finally {
-        this.loadingPromise = null;
-      }
 
-      this.runMigrations();
-      return this.state!;
-    })();
+        this.runMigrations();
+        return this.state!;
+      })();
 
-    return this.loadingPromise;
+      this.loadingPromise = bgPromise;
+    }
+
+    return state;
   }
 
   public static async save(): Promise<void> {

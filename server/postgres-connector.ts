@@ -252,6 +252,27 @@ export function translateMySQLToPostgres(sql: string, params: any[] = []): { sql
     pgSql = pgSql.replace(/(\w+)\s*=\s*VALUES\s*\(\s*(\w+)\s*\)/ig, '"$1" = EXCLUDED."$2"');
   }
 
+  // Double-quote unquoted camelCase column names to prevent PostgreSQL case folding errors
+  const camelCaseFields = [
+    'faviconLogo', 'faviconTitle', 'websiteTitle', 'websiteLogo', 'seoTitle', 'seoDescription', 'seoKeywords', 'basePcuRate', 'squadDeleteAction', 'userPagePermissions',
+    'fullName', 'groupAssigned', 'createdAt', 'updatedAt', 'profilePicture', 'contactNumber', 'dailyRate',
+    'puroksCount', 'yakapWillingCount', 'householdProgressBar', 'membersProgressBar', 'pmrfProgressBar',
+    'householdCount', 'memberCount', 'pmrfCount',
+    'householdNumber', 'householdHead', 'completeAddress', 'pmrfStatus', 'yakapWillingStatus', 'approvalStatus', 'pmrfDetails', 'fpeDetails', 'pcsfDetails', 'createdBy', 'updatedBy', 'deletedBy', 'deletedAt', 'submittedByAccountId', 'submittedByUsername', 'dateSubmitted', 'submissionReferenceNumber', 'isFpePcsfOnly', 'approvedBy', 'approvalDate', 'disapprovedBy', 'disapprovalRemarks', 'resubmissionHistory', 'payrollSettled',
+    'householdId', 'firstName', 'middleName', 'lastName', 'civilStatus',
+    'isDisabled', 'pmrfSubmissionId', 'pmrfRecordId', 'memberPin', 'submittedByAccountId',
+    'coLeaders', 'assignedBarangays', 'ratePerPerson', 'isArchived', 'barangayFolderId',
+    'groupName', 'dateRange', 'populationCount', 'totalAmountPaid', 'paidDate', 'settledBy',
+    'patientName', 'bloodPressure', 'heartRate', 'respRate', 'temperature', 'weightKg', 'heightCm',
+    'userId', 'userEmail', 'userName', 'deviceInfo', 'settlementId', 'isOvertime', 'otHours',
+    'daysPresent', 'daysAbsent', 'totalLateMinutes', 'totalDeductions', 'totalEarned',
+    'fileName', 'fileData', 'uploadDate', 'uploadedBy', 'lastModifiedAt', 'otHours', 'daysPresent',
+    'daysAbsent', 'totalLateMinutes', 'totalDeductions', 'totalEarned', 'breakdown'
+  ];
+
+  const camelCaseRegex = new RegExp(`(?<!["'\\\\w])\\\\b(${camelCaseFields.join('|')})\\\\b(?!["'\\\\w])`, 'g');
+  pgSql = pgSql.replace(camelCaseRegex, '"$1"');
+
   // Translate placeholders '?' to '$1', '$2', etc., expanding list arrays
   let paramIndex = 1;
   let finalSql = '';

@@ -129,7 +129,7 @@ CREATE INDEX "idx_household_num" ON "households" ("householdNumber");
 CREATE INDEX "idx_household_head" ON "households" ("householdHead");
 CREATE INDEX "idx_household_approval" ON "households" ("approvalStatus");
 -- Add self-contained relation to Barangay name
-CONSTRAINT "fk_household_barangay" FOREIGN KEY ("barangay") REFERENCES "barangays" ("name") ON UPDATE CASCADE;
+ALTER TABLE "households" ADD CONSTRAINT "fk_household_barangay" FOREIGN KEY ("barangay") REFERENCES "barangays" ("name") ON UPDATE CASCADE;
 
 -- F. HOUSEHOLD MEMBERS
 CREATE TABLE "household_members" (
