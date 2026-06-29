@@ -142,7 +142,7 @@ const ACCOUNT_POSITIONS = [
 ];
 
 export default function Settings({ currentUser, onSettingsUpdate }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'brand' | 'mysql' | 'guide' | 'permissions' | 'export' | 'cache'>('brand');
+  const [activeTab, setActiveTab] = useState<'brand' | 'mysql' | 'guide' | 'permissions' | 'export' | 'cache'>('mysql');
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState(false);

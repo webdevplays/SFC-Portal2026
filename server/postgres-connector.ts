@@ -83,6 +83,7 @@ export const getPostgresConfig = () => {
                 );
 
   return {
+    connectionString: connectionUrl || undefined,
     host,
     user,
     password,
