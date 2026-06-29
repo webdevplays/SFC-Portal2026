@@ -331,7 +331,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                   : 'text-slate-500 hover:text-slate-850'
               }`}
             >
-              Register Team
+              REGISTRATION
             </button>
           </div>
 
@@ -508,114 +508,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             </form>
           )}
 
-          {/* Real-time Dokploy PostgreSQL Database Connection Indicator */}
-          <div className="mt-6 pt-5 border-t-2 border-slate-100 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase text-slate-500 tracking-wider">
-                <Database className="h-4 w-4 text-slate-400" />
-                <span>Dokploy Database Link</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {dbConnected === null ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-slate-50 text-slate-500 border border-slate-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse" />
-                    Checking...
-                  </span>
-                ) : dbConnected ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
-                    Connected
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-50 text-rose-750 border border-rose-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                    Offline (Local JSON)
-                  </span>
-                )}
 
-                <button
-                  type="button"
-                  onClick={() => checkDbStatus(true)}
-                  disabled={checkingDb}
-                  title="Force reconnect and test PostgreSQL"
-                  className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition disabled:opacity-50 cursor-pointer"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${checkingDb ? 'animate-spin text-emerald-600' : ''}`} />
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Helper Text */}
-            <p className="text-[10px] text-slate-500 leading-normal">
-              {dbConnected === true ? (
-                <span>Connected to high-performance Dokploy PostgreSQL database. All records are synchronized in real-time.</span>
-              ) : (
-                <span>Active local fallback system is saving data securely inside <code>data/db.json</code>. Correct your Dokploy env variables to activate PostgreSQL.</span>
-              )}
-            </p>
-
-            {/* Diagnostics Expander */}
-            <div className="border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50">
-              <button
-                type="button"
-                onClick={() => setShowDiagnostics(!showDiagnostics)}
-                className="w-full px-3 py-2 flex items-center justify-between text-[10px] font-bold text-slate-500 hover:text-slate-750 transition cursor-pointer"
-              >
-                <span>Database Connection Diagnostics</span>
-                {showDiagnostics ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              </button>
-
-              {showDiagnostics && (
-                <div className="px-3 pb-3 pt-1 border-t border-slate-100/60 text-[10px] space-y-2 text-slate-600 font-mono">
-                  <div className="grid grid-cols-3 gap-1">
-                    <span className="font-bold text-slate-400 uppercase text-[9px]">Engine:</span>
-                    <span className="col-span-2 text-slate-700 font-bold">PostgreSQL (Dokploy/Docker)</span>
-
-                    <span className="font-bold text-slate-400 uppercase text-[9px]">Host:</span>
-                    <span className="col-span-2 text-slate-700">{dbDetails?.host || 'Not Set'}</span>
-
-                    <span className="font-bold text-slate-400 uppercase text-[9px]">Database:</span>
-                    <span className="col-span-2 text-slate-700">{dbDetails?.database || 'Not Set'}</span>
-
-                    <span className="font-bold text-slate-400 uppercase text-[9px]">User:</span>
-                    <span className="col-span-2 text-slate-700">{dbDetails?.user || 'Not Set'}</span>
-
-                    <span className="font-bold text-slate-400 uppercase text-[9px]">Port:</span>
-                    <span className="col-span-2 text-slate-700">{dbDetails?.port || '5432'}</span>
-                  </div>
-
-                  <div className="pt-1.5 border-t border-slate-100 text-[9px] text-slate-400 break-all leading-normal font-sans">
-                    <span className="font-bold text-slate-500 font-sans">Status Message:</span>
-                    <p className="mt-0.5 text-slate-600 bg-white p-1.5 border border-slate-200/60 rounded-lg font-mono text-[9px]">
-                      {dbConfigMessage || 'Pending test connection request.'}
-                    </p>
-                    {dbConfigMessage && (dbConfigMessage.includes('HTML page') || dbConfigMessage.includes('response code') || dbConfigMessage.includes('Proxy Title')) && (
-                      <div className="mt-2.5 bg-amber-50/95 border border-amber-200 rounded-lg p-2.5 text-[9px] text-amber-900 leading-normal font-sans space-y-1.5">
-                        <div>
-                          💡 <strong>Dokploy Deployment Checklist:</strong>
-                        </div>
-                        <ul className="list-disc pl-3.5 space-y-1">
-                          <li>
-                            <strong>Clear "Publish Directory" (CRITICAL):</strong> In Dokploy application settings, under <strong>Build Type</strong> (Nixpacks), the <strong>"Publish Directory"</strong> field <strong>MUST be completely empty</strong>! If you set this to <code>dist</code> or <code>public</code>, Dokploy starts a Caddy server to serve static files, ignoring the Express Node.js backend.
-                          </li>
-                          <li>
-                            <strong>Application Type:</strong> Verify you did not accidentally deploy a <strong>"Static Site"</strong> instead of a <strong>"Node.js/Nixpacks Application"</strong>.
-                          </li>
-                          <li>
-                            <strong>Port:</strong> Ensure the <strong>Port</strong> field in Dokploy is set to <strong>3000</strong>.
-                          </li>
-                          <li>
-                            <strong>Redeploy:</strong> Click <strong>Redeploy</strong> (not just Restart) in Dokploy to compile the backend and start the application.
-                          </li>
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
 
         </div>
 

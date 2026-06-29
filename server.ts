@@ -31,8 +31,8 @@ const RAW_PORT = isAISandbox ? '3000' : (process.env.PORT || '3000');
 const isSocket = RAW_PORT.startsWith('/') || RAW_PORT.startsWith('\\') || isNaN(Number(RAW_PORT));
 const PORT = isSocket ? RAW_PORT : parseInt(RAW_PORT, 10);
 
-app.use(express.json({ limit: '200mb' }));
-app.use(express.urlencoded({ limit: '200mb', extended: true }));
+app.use(express.json({ limit: '600mb' }));
+app.use(express.urlencoded({ limit: '600mb', extended: true }));
 
 // Global error handler for body-parser / JSON parse errors
 app.use((err: any, req: any, res: any, next: any) => {
@@ -3289,6 +3289,82 @@ app.post('/api/households/delete', checkUser, (req: any, res) => {
   logSquadChanges(req.currentUser.fullName, oldStats, db);
 
   res.json({ success: true, message: 'Household moved to Recycle Bin.' });
+});
+
+// Restore endpoint - ONLY ADMIN can restore!
+app.post('/api/households/restore', checkUser, (req: any, res) => {
+  const { id } = req.body;
+  const db = SaintFrancisDB.getData();
+  const household = db.households.find(h => h.id === id);
+
+  if (!household) {
+    return res.status(404).json({ error: 'Household not found' });
+  }
+
+  // Filter guard ONLY master admin can restore
+  if (req.currentUser.email && req.currentUser.email.toLowerCase() !== 'elthrone1233@gmail.com' && req.currentUser.email.toLowerCase() !== 'saintfrancisclinic2026@gmail.com') {
+    return res.status(403).json({ error: 'Access denied. Only the Master Admin can restore entry data.' });
+  }
+
+  // Capture old state signatures
+  const oldStats = captureAllOldStats(db);
+
+  // Restore values in db
+  household.deletedBy = null;
+  household.deletedAt = null;
+
+  SaintFrancisDB.save();
+  SaintFrancisDB.log(req.currentUser.fullName, `Restored Household: ${household.householdHead} from Recycle Bin`, 'Households');
+
+  // Log Squad / Payroll changes
+  logSquadChanges(req.currentUser.fullName, oldStats, db);
+
+  res.json({ success: true, message: 'Household restored successfully.' });
+});
+
+// Empty Recycle Bin endpoint - ONLY ADMIN can empty!
+app.post('/api/households/empty-recycle-bin', checkUser, async (req: any, res) => {
+  const db = SaintFrancisDB.getData();
+  
+  // Filter guard ONLY master admin can delete
+  if (req.currentUser.email && req.currentUser.email.toLowerCase() !== 'elthrone1233@gmail.com' && req.currentUser.email.toLowerCase() !== 'saintfrancisclinic2026@gmail.com') {
+    return res.status(403).json({ error: 'Access denied. Only the Master Admin can empty the Recycle Bin.' });
+  }
+
+  const softDeleted = db.households.filter(h => h.deletedAt);
+  if (softDeleted.length === 0) {
+    return res.status(400).json({ error: 'Recycle Bin is already empty.' });
+  }
+
+  const deletedIds = softDeleted.map(h => h.id);
+
+  // Capture old state signatures
+  const oldStats = captureAllOldStats(db);
+
+  // PostgreSQL/MySQL delete if pool is active
+  const pool = getMySQLPool();
+  if (pool && shouldAttemptMySQL()) {
+    try {
+      console.log(`[DATABASE PURGE] Purging ${deletedIds.length} households from PostgreSQL database...`);
+      // Since ON DELETE CASCADE is set on foreign keys, deleting from households cascades to dependents and members!
+      await pool.query('DELETE FROM households WHERE id IN (?)', [deletedIds]);
+    } catch (sqlErr: any) {
+      console.error('[DATABASE PURGE ERROR] Failed to purge PostgreSQL records:', sqlErr);
+    }
+  }
+
+  // Local JSON DB clean
+  db.households = db.households.filter(h => !h.deletedAt);
+  db.householdMembers = db.householdMembers.filter(m => !deletedIds.includes(m.householdId));
+  db.dependents = db.dependents.filter(d => !deletedIds.includes(d.householdId));
+
+  SaintFrancisDB.save();
+  SaintFrancisDB.log(req.currentUser.fullName, `Emptied Recycle Bin: Permanently purged ${deletedIds.length} household records.`, 'Households');
+
+  // Log Squad / Payroll changes
+  logSquadChanges(req.currentUser.fullName, oldStats, db);
+
+  res.json({ success: true, message: `Successfully emptied Recycle Bin and permanently deleted ${deletedIds.length} records.` });
 });
 
 

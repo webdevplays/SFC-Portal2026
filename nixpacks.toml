@@ -12,5 +12,5 @@ cmds = [
 ]
 
 [start]
-cmd = "node server.cjs"
+cmd = "node --max-old-space-size=4096 server.cjs"
 

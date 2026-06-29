@@ -3252,27 +3252,17 @@ export default function Households({
   const handleRestoreHousehold = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      // Set soft delete fields back to null in Server. We can use POST edit.
       const target = households.find(h => h.id === id);
       if (!target) return;
-      const res = await fetch('/api/households/edit', {
+      const res = await fetch('/api/households/restore', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-email': currentUser.email
         },
-        body: JSON.stringify({
-          id,
-          householdData: {
-            ...target,
-            // Re-saving variables resets the action
-            latitude: target.latitude,
-            longitude: target.longitude,
-          }
-        })
+        body: JSON.stringify({ id })
       });
       if (res.ok) {
-        // Direct DB state fix is simulated by removing deleted elements
         setAlertModal({
           isOpen: true,
           title: 'Household Restored',
@@ -3280,10 +3270,64 @@ export default function Households({
           type: 'success'
         });
         fetchHouseholdsAll();
+      } else {
+        const err = await res.json();
+        setAlertModal({
+          isOpen: true,
+          title: 'Restoration Failed',
+          description: err.error || 'Failed to restore household.',
+          type: 'error'
+        });
       }
     } catch (e) {
       console.error(e);
     }
+  };
+
+  // Empty Recycle Bin action
+  const handleEmptyRecycleBin = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Empty Recycle Bin?',
+      description: 'Are you absolutely sure you want to permanently delete all soft-deleted household records and their associated files? This action is IRREVERSIBLE and cannot be undone.',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const res = await fetch('/api/households/empty-recycle-bin', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-email': currentUser.email
+            }
+          });
+          if (res.ok) {
+            setAlertModal({
+              isOpen: true,
+              title: 'Recycle Bin Emptied',
+              description: 'All soft-deleted households and their dependencies have been permanently removed.',
+              type: 'success'
+            });
+            fetchHouseholdsAll();
+          } else {
+            const err = await res.json();
+            setAlertModal({
+              isOpen: true,
+              title: 'Failed to Empty Bin',
+              description: err.error || 'Failed to permanently erase soft-deleted records.',
+              type: 'error'
+            });
+          }
+        } catch (err: any) {
+          console.error(err);
+          setAlertModal({
+            isOpen: true,
+            title: 'Connection Error',
+            description: 'Could not connect to server to empty Recycle Bin.',
+            type: 'error'
+          });
+        }
+      }
+    });
   };
 
   const handleOpenEdit = async (h: Household, e: React.MouseEvent) => {
@@ -3683,12 +3727,23 @@ export default function Households({
 
       {/* RECYCLE BIN WARNING */}
       {showRecycleBin && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 text-red-900 text-xs">
-          <AlertTriangle className="h-5 w-5 text-red-600 animate-pulse" />
-          <div>
-            <strong className="font-semibold block text-red-800">Recycle Bin Active</strong>
-            Viewing soft-deleted files. Only Clinical Administrators can restore or permanently erase database archives.
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-red-900 text-xs">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 animate-pulse" />
+            <div>
+              <strong className="font-semibold block text-red-800">Recycle Bin Active</strong>
+              Viewing soft-deleted files. Only Clinical Administrators can restore or permanently erase database archives.
+            </div>
           </div>
+          {filtered.length > 0 && (
+            <button
+              onClick={handleEmptyRecycleBin}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-1.5 self-start sm:self-auto shadow-sm shadow-red-100 hover:shadow-red-200 transition cursor-pointer"
+            >
+              <Trash className="h-4 w-4" />
+              <span>Empty Recycle Bin</span>
+            </button>
+          )}
         </div>
       )}
 
