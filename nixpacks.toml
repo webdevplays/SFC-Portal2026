@@ -1,6 +1,7 @@
 [phases.install]
 cmds = [
-  "npm install --include=optional"
+  "npm install --include=optional",
+  "npm audit fix --force"
 ]
 
 [phases.build]
