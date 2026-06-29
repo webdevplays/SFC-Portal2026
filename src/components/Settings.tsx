@@ -1437,10 +1437,10 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
         <div className="space-y-6">
           <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-xl p-6 shadow-md border border-indigo-950 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-2">
-              <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold tracking-wider border border-indigo-500/20">cPanel & MySQL Checklist Master</span>
-              <h2 className="text-xl font-extrabold font-sans tracking-tight">cPanel Web Hosting Deployment Handbook</h2>
+              <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold tracking-wider border border-indigo-500/20">Dokploy & MySQL Checklist Master</span>
+              <h2 className="text-xl font-extrabold font-sans tracking-tight">Dokploy Docker Web Hosting Deployment Handbook</h2>
               <p className="text-slate-305 max-w-2xl text-[11px] leading-relaxed">
-                Follow this interactive handbook step-by-step to bind this React SPA and customized Node.js Express API server directly inside standard Linux cPanel environments with zero CLI overhead.
+                Follow this interactive handbook step-by-step to deploy this React SPA and customized Node.js Express API server directly inside Dokploy Docker container environments.
               </p>
             </div>
             
@@ -1449,7 +1449,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                 onClick={handleDownloadFile}
                 className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold px-4 py-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition text-[10px] uppercase tracking-wider shrink-0"
               >
-                <Download className="h-3.5 w-3.5" /> Download Script
+                <Download className="h-3.5 w-3.5" /> Download Schema Script
               </button>
             </div>
           </div>
@@ -1459,71 +1459,71 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
             {/* Step Walkthrough Cards */}
             <div className="xl:col-span-2 space-y-6">
               
-              {/* Part 1: Setting up MySQL on cPanel */}
+              {/* Part 1: Setting up MySQL on Dokploy */}
               <div className="bg-white p-5 rounded-xl border border-slate-150 shadow-sm space-y-4">
                 <div className="flex items-center gap-3 border-b pb-3">
                   <div className="bg-blue-100 text-blue-700 font-extrabold text-sm h-6 w-6 rounded-full flex items-center justify-center">1</div>
                   <div>
-                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 1: Create & Register MySQL Database on cPanel</h3>
-                    <p className="text-slate-405 text-[10px]">Create databases, users, and configure read/write permissions</p>
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 1: Create MySQL Database on Dokploy</h3>
+                    <p className="text-slate-405 text-[10px]">Create databases inside the Dokploy panel and configure port bindings</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-600 leading-relaxed font-semibold">
                   <div className="space-y-3 p-3.5 bg-slate-50 border rounded-lg">
-                    <strong className="text-slate-700 block text-[10px] uppercase tracking-wider font-extrabold">🚨 Database Credentials Wizard:</strong>
-                    <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-650">
-                      <li>Log in to your <strong>cPanel</strong> service panel.</li>
-                      <li>Find and click the <strong>MySQL® Database Wizard</strong>.</li>
-                      <li>Define a unique suffix name (e.g., <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px] font-mono text-indigo-700 font-bold">yourusername_sfclinic</code>).</li>
-                      <li>Click <strong>Next Step</strong>.</li>
+                    <strong className="text-slate-700 block text-[10px] uppercase tracking-wider font-extrabold">🚨 Database Creation Wizard:</strong>
+                    <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-650 font-semibold">
+                      <li>Log in to your <strong>Dokploy</strong> dashboard.</li>
+                      <li>Go to <strong>Databases</strong> on the left side menu, and click <strong>Create Database</strong>.</li>
+                      <li>Select <strong>MySQL</strong> as the engine. Define a name (e.g., <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px] font-mono text-indigo-700 font-bold">sfclinic-db</code>).</li>
+                      <li>Click <strong>Create</strong> to instantiate the database container.</li>
                     </ol>
                   </div>
 
                   <div className="space-y-3 p-3.5 bg-slate-50 border rounded-lg">
-                    <strong className="text-slate-700 block text-[10px] uppercase tracking-wider font-extrabold">🔐 Bind Database & User Accounts:</strong>
-                    <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-650">
-                      <li>Create a database user account (e.g., <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px] font-mono text-indigo-700 font-bold">yourusername_sfcuser</code>) with a secure password.</li>
-                      <li>On the Privileges page, enable <strong>ALL PRIVILEGES</strong>.</li>
-                      <li>Tick <strong>Make Changes</strong> to secure connection rights.</li>
+                    <strong className="text-slate-700 block text-[10px] uppercase tracking-wider font-extrabold">🔐 Connection Details:</strong>
+                    <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-650 font-semibold">
+                      <li>Once created, Dokploy will automatically generate internal/external connection details.</li>
+                      <li>Locate the <strong>Connection URL</strong> or the individual host, port, username, password and database values.</li>
+                      <li>Keep these safe for mounting in the application container environment settings.</li>
                     </ol>
                   </div>
                 </div>
               </div>
 
-              {/* Part 2: Import SQL Script with phpMyAdmin */}
+              {/* Part 2: Import SQL Script with phpMyAdmin / Adminer */}
               <div className="bg-white p-5 rounded-xl border border-slate-150 shadow-sm space-y-4">
                 <div className="flex items-center gap-3 border-b pb-3">
                   <div className="bg-emerald-100 text-emerald-700 font-extrabold text-sm h-6 w-6 rounded-full flex items-center justify-center">2</div>
                   <div>
-                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 2: Database Migration with phpMyAdmin</h3>
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 2: Database Migration with Adminer / phpMyAdmin</h3>
                     <p className="text-slate-405 text-[10px]">Establish tables, indices, and setup baseline dataset feeds</p>
                   </div>
                 </div>
 
                 <div className="space-y-3 text-[11px] font-semibold leading-relaxed">
                   <p className="text-slate-650">
-                    Use cPanel's built-in phpMyAdmin interface to import the SQL schemas into your database easily:
+                    Use Dokploy's database management interfaces or tools like Adminer to import the SQL schemas:
                   </p>
                   <div className="p-3.5 bg-emerald-50/50 border border-emerald-100 rounded-xl space-y-2.5">
                     <ol className="list-decimal pl-4.5 space-y-1.5 text-emerald-900">
-                      <li>Launch <strong>phpMyAdmin</strong> from your cPanel dashboard workspace.</li>
-                      <li>Select your newly provisioned database from the left sidebar tree.</li>
-                      <li>Click the <strong>Import</strong> utility tab in the top menu bar.</li>
-                      <li>Click <strong>Browse</strong> or <strong>Choose File</strong> and navigate to select your <strong className="font-bold underline">mysql-schema.sql</strong> file.</li>
-                      <li>Set format settings as <strong>SQL</strong> and click the <strong>Import</strong> / <strong>Go</strong> button to instantiate tables and seed baseline data!</li>
+                      <li>Use the <strong>Database External Connection</strong> details to log in via your favorite DB manager (Adminer, DBeaver, phpMyAdmin, or TablePlus).</li>
+                      <li>Select your newly provisioned database.</li>
+                      <li>Go to the <strong>SQL Command / Import</strong> utility tab.</li>
+                      <li>Load and execute the <strong className="font-bold underline">mysql-schema.sql</strong> file.</li>
+                      <li>This automatically instantiates all 12 tables and injects baseline diagnostic and clinical administrative records seamlessly!</li>
                     </ol>
                   </div>
                 </div>
               </div>
 
-              {/* Part 3: Environment Variable Variables */}
+              {/* Part 3: Environment Variables on Dokploy */}
               <div className="bg-white p-5 rounded-xl border border-slate-150 shadow-sm space-y-4">
                 <div className="flex items-center gap-3 border-b pb-3">
                   <div className="bg-amber-100 text-amber-700 font-extrabold text-sm h-6 w-6 rounded-full flex items-center justify-center">3</div>
                   <div>
-                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 3: Swapping Node Connection Details</h3>
-                    <p className="text-slate-405 text-[10px]">Mount custom credentials inside .env secrets file</p>
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 3: Swapping Connection Details on Dokploy</h3>
+                    <p className="text-slate-405 text-[10px]">Mount custom connection parameters inside Dokploy Environment Variables</p>
                   </div>
                 </div>
 
@@ -1533,7 +1533,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                     <button
                       type="button"
                       onClick={() => {
-                        const envPlaceholder = `# MySQL Configuration Details\nDB_HOST=localhost\nDB_USER=yourusername_sfcuser\nDB_PASSWORD=your_secure_password\nDB_NAME=yourusername_sfclinic\nDB_PORT=3306`;
+                        const envPlaceholder = `# Dokploy MySQL Database Connection (URL format)\nDATABASE_URL=mysql://root:yourpassword@mysql-container-host:3306/sfclinic-db\n\n# Or separate variables\nDB_HOST=mysql-container-host\nDB_USER=root\nDB_PASSWORD=your_secure_password\nDB_NAME=sfclinic-db\nDB_PORT=3306`;
                         navigator.clipboard.writeText(envPlaceholder);
                         setEnvCopied(true);
                         setTimeout(() => setEnvCopied(false), 2000);
@@ -1546,65 +1546,61 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                   </div>
 
                   <div className="bg-slate-900 border border-slate-950 p-3.5 rounded-xl text-slate-300 font-mono text-[10px] leading-relaxed">
-                    <span className="text-slate-500 block select-none"># Change these placeholders to real cPanel details:</span>
-                    <div>DB_HOST=<span className="text-emerald-400 font-bold">localhost</span></div>
-                    <div>DB_USER=<span className="text-amber-400 font-bold">yourusername_sfcuser</span></div>
+                    <span className="text-slate-500 block select-none"># Dokploy connection URI formats are parsed natively:</span>
+                    <div>DATABASE_URL=<span className="text-emerald-400 font-bold">mysql://root:password@dokploy-mysql:3306/sfclinic-db</span></div>
+                    <span className="text-slate-500 block select-none mt-2"># Or map individual container keys:</span>
+                    <div>DB_HOST=<span className="text-emerald-400 font-bold">dokploy-mysql</span></div>
+                    <div>DB_USER=<span className="text-amber-400 font-bold">root</span></div>
                     <div>DB_PASSWORD=<span className="text-pink-400 font-bold">your_secure_passcode</span></div>
-                    <div>DB_NAME=<span className="text-sky-400 font-bold">yourusername_sfclinic</span></div>
+                    <div>DB_NAME=<span className="text-sky-400 font-bold">sfclinic-db</span></div>
                     <div>DB_PORT=<span className="text-teal-400 font-bold">3306</span></div>
                   </div>
                   
-                  <div className="p-3 bg-amber-50/50 border border-amber-200 rounded-xl leading-relaxed text-[11px] text-amber-900 font-semibold">
-                    💡 NOTE: Keep "DB_HOST" set to "localhost" because cPanel typically serves MySQL databases and Node.js instances inside the same server node.
+                  <div className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-xl leading-relaxed text-[11px] text-indigo-950 font-semibold">
+                    💡 DOKPLOY COMPATIBILITY NOTE: Our customized MySQL DB connector natively parses both consolidated Connection URLs (<code className="bg-indigo-100 text-indigo-800 px-1 py-0.5 rounded text-[9.5px]">DATABASE_URL</code>, <code className="bg-indigo-100 text-indigo-800 px-1 py-0.5 rounded text-[9.5px]">MYSQL_URL</code>) and standard individual environment variables.
                   </div>
                 </div>
               </div>
 
-              {/* Part 4: Deploying Node App via cPanel */}
+              {/* Part 4: Deploying App via Dokploy */}
               <div className="bg-white p-5 rounded-xl border border-slate-150 shadow-sm space-y-4">
                 <div className="flex items-center gap-3 border-b pb-3">
                   <div className="bg-purple-105 text-purple-700 font-extrabold text-sm h-6 w-6 rounded-full flex items-center justify-center">4</div>
                   <div>
-                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 4: Launching Node App on cPanel Web Interface</h3>
-                    <p className="text-slate-405 text-[10px]">Create virtual environment context inside standard virtual hosts</p>
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Part 4: Deploying Node App Container on Dokploy</h3>
+                    <p className="text-slate-405 text-[10px]">Deploy code directly inside Dokploy Virtual Host Environments</p>
                   </div>
                 </div>
 
-                <div className="space-y-4 text-[11px] text-slate-650 leading-relaxed font-semibold">
+                <div className="space-y-4 text-[11px] text-slate-655 leading-relaxed font-semibold">
                   <p>
-                    Follow these step sequences inside cPanel's Setup Node.js app tab:
+                    Follow these step sequences inside the Dokploy Application Panel:
                   </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-3.5 bg-slate-50 border rounded-xl divide-y space-y-3">
                       <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">1. CREATE APP INSTANCE</span>
-                        <p className="text-[10px] text-slate-500 leading-normal">Locate and click <strong>"Setup Node.js App"</strong>. Hit <strong>"Create Application"</strong> in the top right.</p>
+                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">1. CREATE APPLICATION</span>
+                        <p className="text-[10px] text-slate-500 leading-normal">Go to <strong>Applications</strong> dashboard. Click <strong>Create Application</strong>, select your source Git Repository and branch.</p>
                       </div>
                       <div className="pt-2 flex flex-col gap-1">
-                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">2. NODE VERSION</span>
-                        <p className="text-[10px] text-slate-505 leading-normal">Select version <strong>18.x</strong> or <strong>20.x</strong> from standard parameters list.</p>
+                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">2. BUILD CONFIGURATION</span>
+                        <p className="text-[10px] text-slate-505 leading-normal">Set Build Type to <strong>Nixpacks</strong> or use the included multi-stage production <strong>Dockerfile</strong>.</p>
                       </div>
                       <div className="pt-2 flex flex-col gap-1.5">
-                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">3. ENVIRONMENT MODE</span>
-                        <div>
-                          <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded text-[9px] font-mono font-bold">production</span>
-                        </div>
+                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">3. ENVIRONMENT VARIABLES</span>
+                        <p className="text-[10px] text-slate-505 leading-normal">Paste your MySQL credentials and set <code className="bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold">NODE_ENV=production</code> inside the Environment tab.</p>
                       </div>
                     </div>
 
                     <div className="p-3.5 bg-slate-50 border rounded-xl divide-y space-y-3">
                       <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">4. APPLICATION ROOT</span>
-                        <p className="text-[10px] text-slate-505 leading-normal">Enter folder directory location (e.g., <code className="bg-slate-200 px-1 rounded text-red-700 font-mono text-[9px]">public_html/sfclinic</code>).</p>
+                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">4. DEPLOY AND LOGS</span>
+                        <p className="text-[10px] text-slate-505 leading-normal">Tap the <strong>Deploy</strong> button. Go to the <strong>Logs</strong> tab to verify server-side connection checks are returning green.</p>
                       </div>
                       <div className="pt-2 flex flex-col gap-1">
-                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">5. APPLICATION URL</span>
-                        <p className="text-[10px] text-slate-505 leading-normal">Bind it to your primary domain (e.g., <code className="text-slate-700 font-mono text-[9px]">clinic.yourdomain.com</code>).</p>
-                      </div>
-                      <div className="pt-2 flex flex-col gap-1">
-                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">6. STARTUP FILE ENTRY</span>
-                        <p className="text-[10px] text-slate-505 leading-normal">Provide the compiled server script file: <code className="bg-slate-205 px-1 rounded text-emerald-800 font-mono text-[9px]">dist/server.cjs</code>.</p>
+                        <span className="text-[10px] text-indigo-700 font-extrabold block uppercase tracking-wider">5. REVERSE PROXY & DOMAIN</span>
+                        <p className="text-[10px] text-slate-505 leading-normal">Bind the application port <code>3000</code> and map your clinical domain (e.g., <code>clinic.yourdomain.com</code>) with automatic SSL certificates.</p>
                       </div>
                     </div>
                   </div>
@@ -1621,7 +1617,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                   <AlertTriangle className="h-5 w-5 text-amber-600 animate-bounce mt-0.5 shrink-0" />
                   <div>
                     <h3 className="font-extrabold text-amber-900 text-xs uppercase tracking-wider leading-none">Part 5: Troubleshooting Build Errors</h3>
-                    <span className="text-amber-800 text-[10px] mt-1 block">Quick fixes for "vite: command not found" & terminal issues</span>
+                    <span className="text-amber-800 text-[10px] mt-1 block">Quick fixes for "vite: command not found" & container issues</span>
                   </div>
                 </div>
 
@@ -1635,7 +1631,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                   </p>
                 </div>
 
-                {/* Sub tabs for local computer vs cpanel fixes */}
+                {/* Sub tabs for local computer vs Dokploy container fixes */}
                 <div className="space-y-3">
                   <span className="text-[10px] font-extrabold text-slate-500 block uppercase tracking-wider">Select your Environment to fix:</span>
                   <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/60 rounded-lg">
@@ -1651,7 +1647,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                       onClick={() => setTroubleTab('cpanel')}
                       className={`py-1.5 px-3 font-extrabold rounded-md text-[10px] uppercase tracking-wide cursor-pointer text-center select-none shadow-sm transition ${troubleTab === 'cpanel' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-850'}`}
                     >
-                      🌐 On cPanel Admin
+                      🌐 On Dokploy Container
                     </button>
                   </div>
 
@@ -1676,25 +1672,20 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                   ) : (
                     <div className="bg-white p-3.5 border border-slate-200 rounded-xl space-y-4 text-[11px]">
                       <div className="space-y-2">
-                        <strong className="text-slate-800 font-bold block text-[10px] uppercase tracking-wider text-indigo-750">Method A: Web Panel (No CLI needed)</strong>
+                        <strong className="text-slate-800 font-bold block text-[10px] uppercase tracking-wider text-indigo-750">Method A: Application Rebuild</strong>
                         <ol className="list-decimal pl-4.5 space-y-1 text-slate-650 font-semibold">
-                          <li>Access <strong>"Setup Node.js App"</strong> inside cPanel app.</li>
-                          <li>Click the <strong>Edit Action Gear/pencil</strong> next to your active clinic application.</li>
-                          <li>Find and click the <strong className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 border border-emerald-250 rounded">"Run NPM Install"</strong> button on settings page.</li>
-                          <li>Under the JS Scripts run selector, select <strong className="italic font-bold">build</strong> and click the run button.</li>
-                          <li>Hit <strong>"Restart"</strong> at the top of Setup page!</li>
+                          <li>Access the <strong>Dokploy</strong> panel.</li>
+                          <li>Click on your active clinic Node.js Application.</li>
+                          <li>Go to the <strong>Deployments</strong> or <strong>Actions</strong> tab.</li>
+                          <li>Click <strong>Redeploy</strong> to run a clean container rebuild which automatically installs all node modules and compiles Vite assets cleanly.</li>
                         </ol>
                       </div>
 
                       <div className="space-y-2 pt-3 border-t font-semibold">
-                        <strong className="text-slate-800 font-bold block text-[10px] uppercase tracking-wider text-indigo-750">Method B: SSH / Terminal commands line</strong>
+                        <strong className="text-slate-800 font-bold block text-[10px] uppercase tracking-wider text-indigo-750">Method B: Re-trigger Build on Commit</strong>
                         <ol className="list-decimal pl-4.5 space-y-1.5 text-slate-650 font-semibold">
-                          <li>Copy the <strong>venv activation command link</strong> at the top of your Node settings page (starts with <code>source /home/...</code>).</li>
-                          <li>Open terminal inside cPanel or login through SSH.</li>
-                          <li>Run that activation command, then execute standard script lines:
-                            <pre className="bg-slate-900 text-slate-100 p-2 rounded font-mono text-[9.5px] mt-1 overflow-x-auto">cd public_html/sfclinic{"\n"}npm install{"\n"}npm run build</pre>
-                          </li>
-                          <li>Go back to cPanel Setup Page and tap <strong>"Restart"</strong>.</li>
+                          <li>Ensure your code changes are committed and pushed to your git repository.</li>
+                          <li>Dokploy will automatically capture the webhook push and trigger a clean Nixpacks build.</li>
                         </ol>
                       </div>
                     </div>
@@ -2185,7 +2176,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
               <span className="bg-emerald-500/30 text-emerald-100 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-emerald-500/20">System Performance & Updates Clearing Center</span>
               <h2 className="text-xl font-bold font-sans tracking-tight leading-none uppercase pt-1">Clear Browser Cache & Live Updates</h2>
               <p className="text-emerald-100/80 leading-relaxed font-medium">
-                Browsers deployed on cPanel environments cache JavaScript packages, assets, and templates aggressively. If you perform an update but see empty screens, outdated validation rules, or execution mismatches, use this dashboard to purge the internal browser local storage buffers safely.
+                Browsers deployed on Dokploy and Docker container hosting environments cache JavaScript packages, assets, and templates aggressively to save bandwidth. If you perform an update but see empty screens, outdated validation rules, or execution mismatches, use this dashboard to purge the internal browser local storage buffers safely.
               </p>
             </div>
             <button
@@ -2205,17 +2196,17 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                     <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
                       <RefreshCw className="h-4 w-4 text-emerald-600 animate-none" /> Complete CacheStorage & Service Workers Purge
                     </h3>
-                    <p className="text-slate-400 text-[10px] mt-0.5">Safely removes registered scripts, service workers, and static files</p>
+                    <p className="text-slate-405 text-[10px] mt-0.5">Safely removes registered scripts, service workers, and static files</p>
                   </div>
                 </div>
 
                 <div className="space-y-3.5 leading-relaxed text-slate-505">
                   <p>
-                    This is the **absolute most effective way** to enforce freshly compiled update assets. It wipes out all assets registered in your browser's <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 text-[9.5px]">CacheStorage</code> API (which is where PWAs, offline layers, and cPanel bundles live) and removes any legacy Service Workers dynamically.
+                    This is the **absolute most effective way** to enforce freshly compiled update assets. It wipes out all assets registered in your browser's <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 text-[9.5px]">CacheStorage</code> API (which is where PWAs, offline layers, and Dokploy bundles live) and removes any legacy Service Workers dynamically.
                   </p>
                   <p className="font-semibold text-amber-700 bg-amber-50 rounded-xl p-3 border border-amber-100/50 flex gap-2">
                     <Info className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
-                    <span><strong>Note:</strong> Executing this routine will clear temporary memory structures and automatically execute a full browser reload immediately to request the latest cPanel node scripts.</span>
+                    <span><strong>Note:</strong> Executing this routine will clear temporary memory structures and automatically execute a full browser reload immediately to request the latest Dokploy container node scripts.</span>
                   </p>
                 </div>
 
@@ -2231,7 +2222,7 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
             </div>
 
             {/* Instruction Column */}
-            <div className="bg-slate-950 text-slate-100 p-6 rounded-2xl border border-slate-850 shadow-inner space-y-5 flex flex-col justify-between font-mono">
+            <div className="bg-slate-955 text-slate-100 p-6 rounded-2xl border border-slate-850 shadow-inner space-y-5 flex flex-col justify-between font-mono">
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
                   <Terminal className="h-5 w-5 text-emerald-400" />
@@ -2240,10 +2231,10 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
 
                 <div className="space-y-3 text-[10.5px] leading-relaxed text-slate-400">
                   <p className="font-bold text-white text-[11px] uppercase tracking-normal">
-                    💡 How does browser caching work on cPanel?
+                    💡 How does browser caching work on Dokploy?
                   </p>
                   <p>
-                    cPanel web servers use built-in compression configurations (such as <code className="text-emerald-300">mod_deflate</code> or server-side cache headers) to optimize speeds. The browser stores bundled JavaScript (<code className="text-emerald-300">index.html</code> / compiled assets) so it doesn't need to download them on every single visit.
+                    Dokploy containers and reverse proxies (like Nginx, Traefik, or Caddy) use built-in caching headers and configurations to optimize speeds. The browser stores bundled JavaScript (<code className="text-emerald-300">index.html</code> / compiled assets) so it doesn't need to download them on every single visit.
                   </p>
                   <p className="font-bold text-white text-[11px] uppercase tracking-normal mt-2">
                     💡 Why can this cause function errors?

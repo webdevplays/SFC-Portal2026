@@ -4,5 +4,5 @@ dist
 .git
 .gitignore
 .dockerignore
-CPANEL_DEPLOY_INSTRUCTIONS.md
+DOKPLOY_DEPLOY_INSTRUCTIONS.md
 saint-francis-db.json.backup

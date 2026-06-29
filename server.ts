@@ -76,7 +76,7 @@ function ensureParsed(field: any) {
 // HELPER: Generate simple random unique ID
 const generateId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
-// HELPER: Normalize strict fields to prevent ENUM constraint issues on MySQL / cPanel
+// HELPER: Normalize strict fields to prevent ENUM constraint issues on MySQL / Dokploy
 function normalizeGender(g: any): string {
   if (!g) return 'Female';
   const s = String(g).trim().toLowerCase();
@@ -2913,7 +2913,7 @@ app.post('/api/households/add', checkUser, async (req: any, res) => {
       markMySQLFailure();
       if (isMySQLRunning) {
         return res.status(500).json({
-          error: `Database save failed: ${transactionErr.message || 'Unknown database translation error'}. The submission could not be written to cPanel MySQL database. Transaction rolled back.`
+          error: `Database save failed: ${transactionErr.message || 'Unknown database translation error'}. The submission could not be written to Dokploy MySQL database. Transaction rolled back.`
         });
       }
     }
@@ -3193,7 +3193,7 @@ app.post('/api/households/edit', checkUser, async (req: any, res) => {
       markMySQLFailure();
       if (isMySQLRunning) {
         return res.status(500).json({
-          error: `Database update failed: ${transactionErr.message || 'Unknown database translation error'}. The updates could not be written to cPanel MySQL database. Transaction rolled back.`
+          error: `Database update failed: ${transactionErr.message || 'Unknown database translation error'}. The updates could not be written to Dokploy MySQL database. Transaction rolled back.`
         });
       }
     }
@@ -6008,7 +6008,7 @@ async function startServer() {
   let foundStaticDist = false;
 
   // Always search for static files in possible paths if Vite development middleware is NOT active.
-  // This supports cPanel environments that do not set NODE_ENV=production but want to serve static build.
+  // This supports Dokploy and other environments that do not set NODE_ENV=production but want to serve static build.
   if (!viteActive) {
     console.log("[Static Routing] Searching for static build artifacts containing index.html...");
     for (const p of possiblePaths) {

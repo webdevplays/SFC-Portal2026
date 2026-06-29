@@ -1,7 +1,7 @@
 import mysql from 'mysql2/promise';
 
 /**
- * Saint Francis Clinic - MySQL Database Connector for cPanel Hosting
+ * Saint Francis Clinic - MySQL Database Connector for Dokploy / Docker Hosting
  */
 
 let pool: mysql.Pool | null = null;
@@ -12,14 +12,14 @@ const RETRY_COOLDOWN_MS = 60000; // 60 seconds cooldown before trying to connect
 
 export const getMySQLConfig = () => {
   // -----------------------------------------------------------------------------
-  // 💾 HARDCODED CPANEL DATABASE CREDENTIALS (FALLBACK ENGINE)
-  // If your cPanel Passenger environment variables fail to load correctly from the
-  // .env file, fill in your actual MySQL database credentials here.
+  // 💾 DOKPLOY DATABASE CREDENTIALS (FALLBACK ENGINE)
+  // If your Dokploy container environment variables fail to load correctly from the
+  // Environment Setup, fill in your actual MySQL database credentials here.
   // -----------------------------------------------------------------------------
-  const CPANEL_FALLBACK_HOST = 'localhost';             // In cPanel, MySQL database is almost always 'localhost'
-  const CPANEL_FALLBACK_USER = '';                      // Enter your database user here (e.g., 'youruser_sfcuser')
+  const CPANEL_FALLBACK_HOST = 'localhost';             // In Dokploy, local test is localhost or container service host
+  const CPANEL_FALLBACK_USER = '';                      // Enter your database user here
   const CPANEL_FALLBACK_PASSWORD = '';                  // Enter your database password here
-  const CPANEL_FALLBACK_DB = '';                        // Enter your database name here (e.g., 'youruser_sfclinic')
+  const CPANEL_FALLBACK_DB = '';                        // Enter your database name here
   const CPANEL_FALLBACK_PORT = '3306';                  // MySQL port number (standard 3306)
 
   // Dokploy, Coolify, and other Docker-based hosting platforms often inject standard connection URLs/URIs
@@ -117,7 +117,7 @@ export function shouldAttemptMySQL(): boolean {
   //
   // We disable localhost connections inside the AI Studio development container
   // to avoid spammy logs and connection failures, but keep them fully enabled
-  // in the user's live production environments (like cPanel or GCP Cloud SQL) where
+  // in the user's live production environments (like Dokploy or GCP Cloud SQL) where
   // a local MySQL database or proxy is expected and correctly configured.
   const isAISandbox = 
     process.env.K_SERVICE?.includes('ais-dev') || 
@@ -167,7 +167,7 @@ export function getMySQLPool(): mysql.Pool | null {
       pool = mysql.createPool(config);
       console.log('⚡ MySQL Pool client constructed for:', config.host);
     } catch (err) {
-      console.warn('⚠️ Note: Could not construct MySQL Pool client (run cPanel Setup Node.js App to connect):', err);
+      console.warn('⚠️ Note: Could not construct MySQL Pool client (run Dokploy to connect):', err);
       markMySQLFailure();
       pool = null;
     }
@@ -178,7 +178,7 @@ export function getMySQLPool(): mysql.Pool | null {
 
 let lastTestResult: { connected: boolean; message: string } | null = null;
 let lastTestTime = 0;
-const CACHE_TEST_MS = 15000; // Cache connection check for 15 seconds to prevent memory/CPU overhead on cPanel
+const CACHE_TEST_MS = 15000; // Cache connection check for 15 seconds to prevent memory/CPU overhead on server
 
 /**
  * Tests connection to MySQL and logs state details. Supports force parameter to bypass cache.
@@ -225,7 +225,7 @@ export async function testMySQLConnection(force: boolean = false): Promise<{ con
       // Execute simple query to test connection integrity
       await connection.query('SELECT 1 + 1 AS result');
       markMySQLSuccess();
-      console.log('✅ PHPMyAdmin/cPanel MySQL Database tests succeeded fully!');
+      console.log('✅ Dokploy/MySQL Database tests succeeded fully!');
       const successResult = { 
         connected: true, 
         message: `Successfully connected to database '${process.env.DB_NAME}' on host '${process.env.DB_HOST}'.` 

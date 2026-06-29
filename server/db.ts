@@ -1760,7 +1760,7 @@ export class SaintFrancisDB {
       const [rows] = await connection.query('SHOW TABLES');
       const tablesCount = (rows as any[]).length;
       if (tablesCount === 0) {
-        console.log('📦 Database is empty. Auto-initializing MySQL database schema inside cPanel...');
+        console.log('📦 Database is empty. Auto-initializing MySQL database schema inside Dokploy...');
         const schemaPath = path.join(process.cwd(), 'mysql-schema.sql');
         if (fs.existsSync(schemaPath)) {
           const rawSql = fs.readFileSync(schemaPath, 'utf8');

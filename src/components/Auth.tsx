@@ -126,16 +126,16 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         // Unexpected format (e.g. Server returned HTML instead of JSON due to 500 error or Passenger crash)
         const rawText = await res.text();
         console.group('%c🚨 [SF_DIAGNOSTIC_FATAL] Unexpected HTML/Text Received instead of JSON!', 'color: #e11d48; font-weight: bold;');
-        console.error('This typically happens when the cPanel hosting environment fails due to an uncaught crash, missing environment variables, or a database connection failure.');
+        console.error('This typically happens when the Dokploy hosting environment fails due to an uncaught crash, missing environment variables, or a database connection failure.');
         console.log('RAW SERVER RESPONSE PREVIEW (First 2000 chars):');
         console.log('%c' + rawText.substring(0, 2000), 'color: #b91c1c; font-family: monospace; font-size: 11px; background: #fef2f2; padding: 8px; border-radius: 6px; border: 1px solid #fee2e2;');
         console.groupEnd();
 
         let diagnosticHint = 'Server returned HTML instead of a valid JSON response. ';
-        if (rawText.includes('Passenger') || rawText.includes('Phusion')) {
-          diagnosticHint += 'cPanel Phusion Passenger gateway has crashed or has stale application files. ';
+        if (rawText.includes('Passenger') || rawText.includes('Phusion') || rawText.includes('Dokploy') || rawText.includes('nginx')) {
+          diagnosticHint += 'Dokploy environment gateway or server container has crashed or has stale configurations. ';
         }
-        if (rawText.toLowerCase().includes('mysql') || rawText.toLowerCase().includes('connect econrefused')) {
+        if (rawText.toLowerCase().includes('mysql') || rawText.toLowerCase().includes('connect econnrefused')) {
           diagnosticHint += 'Database host environment is unreachable or credentials are misconfigured. ';
         }
 
@@ -172,7 +172,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         const diagnosticsRes = await fetch('/api/mysql-status');
         if (diagnosticsRes.ok) {
           const diagResult = await diagnosticsRes.json();
-          console.group('🔑 Server Database Configuration Verification (cPanel .env)');
+          console.group('🔑 Server Database Configuration Verification (Dokploy environment variables)');
           console.log('- MySQL Connect Status:', diagResult.connected ? 'Connected ✅' : 'Disconnected ❌');
           console.log('- Connected DB message:', diagResult.message);
           console.log('- Configured Database Host:', diagResult.config?.host || 'Empty / Missing');
@@ -182,7 +182,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
           console.groupEnd();
           
           if (!diagResult.connected) {
-            console.warn('💡 ACTION REQUIRED: The application remains disconnected from MySQL. This is most likely caused by incorrect credentials or port configuration in the cPanel .env file.');
+            console.warn('💡 ACTION REQUIRED: The application remains disconnected from MySQL. This is most likely caused by incorrect credentials or port configuration in the Dokploy environment variables.');
           } else {
             console.log('💡 DATABASE STACK IS UP: The database connection is working fine. The authentication failure is likely due to wrong login email/password or unapproved team registrations.');
           }
