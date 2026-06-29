@@ -1,0 +1,12 @@
+# SFC Portal - cPanel Apache/Passenger configuration
+# This file prevents CloudLinux Node Selector "FileNotFoundError" when stopping/starting the application.
+
+# Passenger Configuration (Uncomment and customize if manual override is needed)
+# PassengerAppRoot "/home/sfcdvcvd/public_html/sfc-portal"
+# PassengerAppType node
+# PassengerStartupFile server.js
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Rules will be managed or appended by CloudLinux Node Selector
+</IfModule>
