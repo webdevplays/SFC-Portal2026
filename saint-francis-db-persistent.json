@@ -3905,6 +3905,14 @@
   "healthRecords": [],
   "activityLogs": [
     {
+      "id": "log_1782774061667_wo3a",
+      "user": "SFC PORTAL",
+      "action": "Log in successful",
+      "module": "Authentication",
+      "date": "2026-06-29",
+      "time": "11:01 PM"
+    },
+    {
       "id": "log_1782748942781_e7yv",
       "user": "SFC PORTAL",
       "action": "Log in successful",
@@ -3938,6 +3946,14 @@
     }
   ],
   "notifications": [
+    {
+      "id": "not_1782774061667",
+      "title": "Authentication Update",
+      "message": "Log in successful",
+      "type": "SUCCESS",
+      "read": false,
+      "createdAt": "2026-06-29T23:01:01.667Z"
+    },
     {
       "id": "not_1782748942782",
       "title": "Authentication Update",

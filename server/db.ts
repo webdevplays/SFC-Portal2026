@@ -2908,7 +2908,15 @@ export class SaintFrancisDB {
       this.loadingPromise = bgPromise;
     }
 
-    return state;
+    if (this.loadingPromise) {
+      try {
+        await this.loadingPromise;
+      } catch (err: any) {
+        console.warn('[loadFromDB] Warning: Awaiting loading promise failed:', err.message || err);
+      }
+    }
+
+    return this.state || state;
   }
 
   public static async save(): Promise<void> {
