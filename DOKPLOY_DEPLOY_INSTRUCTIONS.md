@@ -76,6 +76,34 @@ Dokploy supports Node.js applications natively via Nixpacks, Dockerfile, or pre-
 
 ## 🛠️ Part 5: Troubleshooting & Common Build Errors
 
+### ❌ Error 0: Server returns an HTML page instead of JSON (Caddy Server Takeover)
+
+- **Why this happens:**
+  Since this is a full-stack Vite React application, there is an `index.html` file in the root folder. When Dokploy builds the application using Nixpacks, Nixpacks sees the `index.html` in the root and mistakenly triggers its **"Static Site"** provider instead of the **"Node.js"** provider. Nixpacks then packages the application with a **Caddy static server** on startup. Caddy serves the built React files perfectly, but because the Node.js/Express server is never started, any `/api/*` endpoints (such as `/api/mysql-status` or `/api/auth/session`) are captured by Caddy's single-page fallback and return the `index.html` file as a response, resulting in HTML/JSON parsing errors.
+
+- **How we fixed this:**
+  We added a custom `nixpacks.toml` file to the root of the project to tell Nixpacks to bypass auto-detection and force the **Node.js** runtime:
+  ```toml
+  providers = ["node"]
+
+  [phases.install]
+  cmds = [
+    "rm -f package-lock.json",
+    "npm install"
+  ]
+
+  [phases.build]
+  cmds = [
+    "npm run build"
+  ]
+
+  [start]
+  cmd = "node server.cjs"
+  ```
+
+- **Action needed on your end:**
+  Simply go to your **Dokploy Dashboard** under your Application settings and click **Redeploy** (do not just restart). Dokploy's Nixpacks builder will read the updated `nixpacks.toml` file, bypass the static Caddy builder, compile the application bundle correctly, and start the dynamic Express Node server on port 3000.
+
 ### ❌ Error 1: Database Connection Refused (`getaddrinfo EAI_AGAIN`) or Timeouts
 
 - **Why this happens:**

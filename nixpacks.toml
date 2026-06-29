@@ -1,3 +1,5 @@
+providers = ["node"]
+
 [phases.install]
 cmds = [
   "rm -f package-lock.json",
@@ -8,3 +10,7 @@ cmds = [
 cmds = [
   "npm run build"
 ]
+
+[start]
+cmd = "node server.cjs"
+

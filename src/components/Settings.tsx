@@ -1412,6 +1412,9 @@ export default function Settings({ currentUser, onSettingsUpdate }: SettingsProp
                           </div>
                           <ul className="list-disc pl-4 space-y-1 text-[9px]">
                             <li>
+                              <strong>Clear "Publish Directory" (CRITICAL):</strong> In your Dokploy application settings, scroll down to the <strong>"Publish Directory"</strong> field and ensure it is <strong>completely empty</strong>! Leaving anything there (like <code>dist</code> or <code>public</code>) forces Dokploy to spin up a Caddy server to serve static files, completely ignoring your Express Node.js backend.
+                            </li>
+                            <li>
                               <strong>Application Type Check:</strong> If the HTML title is <em>"Saint Francis Clinic Portal"</em>, you mistakenly created a <strong>"Static Site"</strong> in Dokploy. You <strong>MUST</strong> delete it and recreate it as an <strong>Application (Node.js/Nixpacks)</strong>. Static sites do not run Express backends!
                             </li>
                             <li>
