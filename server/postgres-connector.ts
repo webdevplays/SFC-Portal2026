@@ -20,9 +20,9 @@ export const getPostgresConfig = () => {
   // Environment Setup, fill in your actual PostgreSQL database credentials here.
   // -----------------------------------------------------------------------------
   const DOKPLOY_FALLBACK_HOST = 'localhost';
-  const DOKPLOY_FALLBACK_USER = 'postgres';
-  const DOKPLOY_FALLBACK_PASSWORD = '';
-  const DOKPLOY_FALLBACK_DB = 'sfclinic';
+  const DOKPLOY_FALLBACK_USER = 'sfcuser';
+  const DOKPLOY_FALLBACK_PASSWORD = 'Saintfrancisclinic2026.';
+  const DOKPLOY_FALLBACK_DB = 'sfcdb';
   const DOKPLOY_FALLBACK_PORT = '5432';
 
   // Dokploy often injects DATABASE_URL, POSTGRES_URL, or POSTGRES_PRIVATE_URL
