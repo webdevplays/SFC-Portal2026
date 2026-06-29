@@ -18,7 +18,16 @@ import {
 
 const express = expressInstance;
 const app = express();
-const RAW_PORT = process.env.PORT || '3000';
+
+const isAISandbox = 
+  process.env.K_SERVICE?.includes('ais-dev') || 
+  process.env.K_SERVICE?.includes('ais-pre') || 
+  process.env.AUTHORIZED_SERVICE_ACCOUNT_EMAIL?.includes('ais-sandbox') ||
+  process.env.APP_URL?.includes('ais-dev') ||
+  process.env.APP_URL?.includes('ais-pre') ||
+  process.env.DEFAULT_APP_PORT === '3000';
+
+const RAW_PORT = isAISandbox ? '3000' : (process.env.PORT || '3000');
 const isSocket = RAW_PORT.startsWith('/') || RAW_PORT.startsWith('\\') || isNaN(Number(RAW_PORT));
 const PORT = isSocket ? RAW_PORT : parseInt(RAW_PORT, 10);
 

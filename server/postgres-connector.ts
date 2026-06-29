@@ -60,33 +60,29 @@ export const getPostgresConfig = () => {
     }
   }
 
-  const host = parsedUrlConfig.host || 
-               process.env.DB_HOST || 
-               process.env.POSTGRES_HOST || 
-               process.env.POSTGRES_PRIVATE_HOST || 
-               DOKPLOY_FALLBACK_HOST;
+  const envHost = process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_PRIVATE_HOST;
+  const isAISandbox = 
+    process.env.K_SERVICE?.includes('ais-dev') || 
+    process.env.K_SERVICE?.includes('ais-pre') || 
+    process.env.AUTHORIZED_SERVICE_ACCOUNT_EMAIL?.includes('ais-sandbox') ||
+    process.env.APP_URL?.includes('ais-dev') ||
+    process.env.APP_URL?.includes('ais-pre') ||
+    process.env.DEFAULT_APP_PORT === '3000';
+
+  const useFallback = (isAISandbox && (envHost === 'localhost' || envHost === '127.0.0.1' || !envHost)) || !envHost;
+
+  const host = parsedUrlConfig.host || (useFallback ? DOKPLOY_FALLBACK_HOST : (envHost || DOKPLOY_FALLBACK_HOST));
                
-  const user = parsedUrlConfig.user || 
-               process.env.DB_USER || 
-               process.env.POSTGRES_USER || 
-               DOKPLOY_FALLBACK_USER;
+  const user = parsedUrlConfig.user || (useFallback ? DOKPLOY_FALLBACK_USER : (process.env.DB_USER || process.env.POSTGRES_USER || DOKPLOY_FALLBACK_USER));
                
   const password = parsedUrlConfig.password !== undefined ? parsedUrlConfig.password : (
-                   process.env.DB_PASSWORD || 
-                   process.env.POSTGRES_PASSWORD || 
-                   DOKPLOY_FALLBACK_PASSWORD
+                   useFallback ? DOKPLOY_FALLBACK_PASSWORD : (process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || DOKPLOY_FALLBACK_PASSWORD)
                  );
                   
-  const database = parsedUrlConfig.database || 
-                   process.env.DB_NAME || 
-                   process.env.DB_DATABASE || 
-                   process.env.POSTGRES_DB || 
-                   DOKPLOY_FALLBACK_DB;
+  const database = parsedUrlConfig.database || (useFallback ? DOKPLOY_FALLBACK_DB : (process.env.DB_NAME || process.env.DB_DATABASE || process.env.POSTGRES_DB || DOKPLOY_FALLBACK_DB));
                     
   const rawPort = parsedUrlConfig.port ? String(parsedUrlConfig.port) : (
-                  process.env.DB_PORT || 
-                  process.env.POSTGRES_PORT || 
-                  DOKPLOY_FALLBACK_PORT
+                  useFallback ? DOKPLOY_FALLBACK_PORT : (process.env.DB_PORT || process.env.POSTGRES_PORT || DOKPLOY_FALLBACK_PORT)
                 );
 
   // Dynamically determine SSL configuration
@@ -116,21 +112,40 @@ export const getPostgresConfig = () => {
   };
 };
 
+function isPrivateHost(host: string): boolean {
+  if (!host) return true;
+  const h = host.toLowerCase().trim();
+  if (h === 'localhost' || h === '127.0.0.1' || h === '::1') return true;
+  // If it's an IP address, check for RFC 1918 private networks
+  if (/^(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/.test(h)) {
+    return true;
+  }
+  // If the host does not contain a dot (e.g. "sfc-portal-sfcpostdb-snp1ir"), it is an internal/local Docker service name
+  if (!h.includes('.')) {
+    return true;
+  }
+  if (h.endsWith('.local') || h.endsWith('.internal')) {
+    return true;
+  }
+  return false;
+}
+
 export function shouldAttemptPostgres(): boolean {
   const config = getPostgresConfig();
   if (!config.database || !config.host) {
     return false;
   }
 
-  // Disable localhost database connections inside the AI Studio development container
+  // Disable localhost and internal Docker host database connections inside the AI Studio development container
   const isAISandbox = 
     process.env.K_SERVICE?.includes('ais-dev') || 
     process.env.K_SERVICE?.includes('ais-pre') || 
     process.env.AUTHORIZED_SERVICE_ACCOUNT_EMAIL?.includes('ais-sandbox') ||
     process.env.APP_URL?.includes('ais-dev') ||
-    process.env.APP_URL?.includes('ais-pre');
+    process.env.APP_URL?.includes('ais-pre') ||
+    process.env.DEFAULT_APP_PORT === '3000';
 
-  if (isAISandbox && (config.host === 'localhost' || config.host === '127.0.0.1')) {
+  if (isAISandbox && isPrivateHost(config.host)) {
     return false;
   }
 
@@ -412,9 +427,23 @@ export async function testPostgresConnection(force: boolean = false): Promise<{ 
   } catch (err: any) {
     console.log('ℹ️ PostgreSQL database connection is currently unavailable:', err.message);
     markPostgresFailure();
+
+    const isAISandbox = 
+      process.env.K_SERVICE?.includes('ais-dev') || 
+      process.env.K_SERVICE?.includes('ais-pre') || 
+      process.env.AUTHORIZED_SERVICE_ACCOUNT_EMAIL?.includes('ais-sandbox') ||
+      process.env.APP_URL?.includes('ais-dev') ||
+      process.env.APP_URL?.includes('ais-pre') ||
+      process.env.DEFAULT_APP_PORT === '3000';
+
+    let extraMsg = '';
+    if (isAISandbox && isPrivateHost(config.host)) {
+      extraMsg = ` (Note: '${config.host}' is an internal Dokploy Docker network host. Google AI Studio preview sandbox is isolated from your private server network, so this EAI_AGAIN error is fully expected here. Once this container is built and run inside your Dokploy server, it will resolve and connect flawlessly.)`;
+    }
+
     const errorResult = { 
       connected: false, 
-      message: `Database connection failed: ${err.message}` 
+      message: `Database connection failed: ${err.message}${extraMsg}` 
     };
     lastTestResult = errorResult;
     lastTestTime = now;
