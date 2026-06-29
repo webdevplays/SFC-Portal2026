@@ -254,6 +254,7 @@ export function translateMySQLToPostgres(sql: string, params: any[] = []): { sql
 
   // Double-quote unquoted camelCase column names to prevent PostgreSQL case folding errors
   const camelCaseFields = [
+    'user', 'date', 'time',
     'faviconLogo', 'faviconTitle', 'websiteTitle', 'websiteLogo', 'seoTitle', 'seoDescription', 'seoKeywords', 'basePcuRate', 'squadDeleteAction', 'userPagePermissions',
     'fullName', 'groupAssigned', 'createdAt', 'updatedAt', 'profilePicture', 'contactNumber', 'dailyRate',
     'puroksCount', 'yakapWillingCount', 'householdProgressBar', 'membersProgressBar', 'pmrfProgressBar',
